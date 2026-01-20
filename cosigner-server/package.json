@@ -1,0 +1,26 @@
+{
+  "name": "solana-cosigner-server",
+  "version": "1.0.0",
+  "description": "Co-signer server for Solana transactions with state management",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "solana",
+    "blockchain",
+    "cosigner"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@solana/web3.js": "^1.87.6",
+    "bs58": "^5.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
