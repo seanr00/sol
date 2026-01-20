@@ -78,30 +78,24 @@ export default function PhantomMultiSigDApp() {
       console.log('Signed transaction:', signed);
       console.log('All signatures:', signed.signatures);
       
-      // Get transaction signature (txid) - it's already in the transaction
-      // The signature is the first signature in base58 format
-      const txSig = signed.signatures[0] && signed.signatures[0].signature 
-        ? Buffer.from(signed.signatures[0].signature).toString('base64')
-        : 'pending';
-      
-      console.log('Transaction signature:', txSig);
-      
-      // For explorer, we need the actual transaction hash
-      // Since the transaction hasn't been sent, we'll use a placeholder
-      // In a real scenario, you'd get this after sending the transaction
-      
-      // Extract signature
+      // Extract signature from the signed transaction
       const sig = signed.signatures.find(s => 
         s.publicKey.toString() === wallet
       );
       
       console.log('User signature object:', sig);
+      console.log('All signatures:', signed.signatures);
       
       if (sig && sig.signature) {
-        const sigString = Buffer.from(sig.signature).toString('hex');
+        // Convert Uint8Array to hex string without using Buffer
+        const sigArray = Array.from(sig.signature);
+        const sigString = sigArray.map(b => b.toString(16).padStart(2, '0')).join('');
         console.log('User signature (hex):', sigString);
-        console.log('User signature (base64):', Buffer.from(sig.signature).toString('base64'));
         setSignature(sigString.slice(0, 32) + '...');
+        
+        // For the transaction signature, we'll serialize and send it
+        // Note: The transaction hasn't been sent yet, so there's no txid
+        // We'll just show the signature hash for now
         setTxSignature(sigString);
       }
       
