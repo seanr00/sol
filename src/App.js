@@ -3,6 +3,7 @@ import { AlertCircle, Wallet, Check } from 'lucide-react';
 
 export default function PhantomMultiSigDApp() {
   const [wallet, setWallet] = useState(null);
+  const [walletType, setWalletType] = useState(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [signature, setSignature] = useState('');
@@ -10,19 +11,31 @@ export default function PhantomMultiSigDApp() {
   const [apiKey, setApiKey] = useState('e596e7d1-1e3e-423f-b173-c3264aa44a0a');
   const [apiKeySet, setApiKeySet] = useState(true);
 
-  const connectWallet = async () => {
+  const connectWallet = async (type) => {
     try {
       setError('');
       setStatus('');
       
-      if (!window.solana || !window.solana.isPhantom) {
-        setError('Phantom wallet not found. Please install Phantom.');
-        return;
+      let provider;
+      
+      if (type === 'phantom') {
+        if (!window.solana || !window.solana.isPhantom) {
+          setError('Phantom wallet not found. Please install Phantom.');
+          return;
+        }
+        provider = window.solana;
+      } else if (type === 'solflare') {
+        if (!window.solflare || !window.solflare.isSolflare) {
+          setError('Solflare wallet not found. Please install Solflare.');
+          return;
+        }
+        provider = window.solflare;
       }
 
-      const response = await window.solana.connect();
+      const response = await provider.connect();
       setWallet(response.publicKey.toString());
-      setStatus('Wallet connected successfully!');
+      setWalletType(type);
+      setStatus(`${type === 'phantom' ? 'Phantom' : 'Solflare'} wallet connected successfully!`);
     } catch (err) {
       setError(`Failed to connect: ${err.message}`);
     }
@@ -35,7 +48,9 @@ export default function PhantomMultiSigDApp() {
       setSignature('');
       setTxSignature('');
 
-      if (!window.solana || !wallet) {
+      const provider = walletType === 'phantom' ? window.solana : window.solflare;
+      
+      if (!provider || !wallet) {
         setError('Please connect your wallet first');
         return;
       }
@@ -68,10 +83,10 @@ export default function PhantomMultiSigDApp() {
       
       transaction.add(memoInstruction);
 
-      setStatus('Waiting for approval in Phantom...');
+      setStatus(`Waiting for approval in ${walletType === 'phantom' ? 'Phantom' : 'Solflare'}...`);
       
-      // Request signature AND submission from Phantom
-      const { signature: txSig } = await window.solana.signAndSendTransaction(transaction);
+      // Request signature AND submission from wallet
+      const { signature: txSig } = await provider.signAndSendTransaction(transaction);
       
       console.log('Transaction signature:', txSig);
       
@@ -100,8 +115,8 @@ export default function PhantomMultiSigDApp() {
           <div className="inline-block p-3 bg-purple-100 rounded-full mb-4">
             <Wallet className="w-8 h-8 text-purple-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Phantom Wallet dApp</h1>
-          <p className="text-gray-600">Solana Mainnet Transaction</p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Solana Wallet dApp</h1>
+          <p className="text-gray-600">Phantom & Solflare Support</p>
         </div>
 
         {error && (
@@ -153,13 +168,22 @@ export default function PhantomMultiSigDApp() {
             </p>
           </div>
         ) : !wallet ? (
-          <button
-            onClick={connectWallet}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
-          >
-            <Wallet className="w-5 h-5" />
-            Connect Phantom Wallet
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={() => connectWallet('phantom')}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+            >
+              <Wallet className="w-5 h-5" />
+              Connect Phantom Wallet
+            </button>
+            <button
+              onClick={() => connectWallet('solflare')}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+            >
+              <Wallet className="w-5 h-5" />
+              Connect Solflare Wallet
+            </button>
+          </div>
         ) : (
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 rounded-lg">
@@ -196,7 +220,7 @@ export default function PhantomMultiSigDApp() {
 
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-xs text-blue-800">
-                <strong>Note:</strong> This will sign and submit a memo transaction to the Solana blockchain. You'll need to approve the transaction in Phantom.
+                <strong>Note:</strong> This will sign and submit a memo transaction to the Solana blockchain. You'll need to approve the transaction in your wallet.
               </p>
             </div>
           </div>
