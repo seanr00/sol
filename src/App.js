@@ -33,7 +33,18 @@ export default function PhantomMultiSigDApp() {
       }
 
       const response = await provider.connect();
-      setWallet(response.publicKey.toString());
+      
+      // Get public key - different wallets have different response structures
+      let publicKey;
+      if (response.publicKey) {
+        publicKey = response.publicKey.toString();
+      } else if (provider.publicKey) {
+        publicKey = provider.publicKey.toString();
+      } else {
+        throw new Error('Failed to get public key from wallet');
+      }
+      
+      setWallet(publicKey);
       setWalletType(type);
       setStatus(`${type === 'phantom' ? 'Phantom' : 'Solflare'} wallet connected successfully!`);
     } catch (err) {
