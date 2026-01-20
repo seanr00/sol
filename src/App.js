@@ -10,8 +10,6 @@ export default function PhantomMultiSigDApp() {
   const [apiKey, setApiKey] = useState('e596e7d1-1e3e-423f-b173-c3264aa44a0a');
   const [apiKeySet, setApiKeySet] = useState(true);
 
-  const REQUIRED_SIGNER = 'AeNzsm4mMEmzogE9fbZ9MHz8x5S3F2iyJpgiVykKFkjJ';
-
   const connectWallet = async () => {
     try {
       setError('');
@@ -35,6 +33,7 @@ export default function PhantomMultiSigDApp() {
       setError('');
       setStatus('Preparing transaction...');
       setSignature('');
+      setTxSignature('');
 
       if (!window.solana || !wallet) {
         setError('Please connect your wallet first');
@@ -57,12 +56,11 @@ export default function PhantomMultiSigDApp() {
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = new PublicKey(wallet);
 
-      // Add memo instruction that requires both signers
+      // Add memo instruction (simplified - only requires your signature)
       const memoData = new Uint8Array([77, 117, 108, 116, 105, 45, 115, 105, 103]); // "Multi-sig"
       const memoInstruction = new TransactionInstruction({
         keys: [
           { pubkey: new PublicKey(wallet), isSigner: true, isWritable: false },
-          { pubkey: new PublicKey(REQUIRED_SIGNER), isSigner: true, isWritable: false },
         ],
         programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'),
         data: memoData,
@@ -70,36 +68,23 @@ export default function PhantomMultiSigDApp() {
       
       transaction.add(memoInstruction);
 
-      setStatus('Waiting for signature in Phantom...');
+      setStatus('Waiting for approval in Phantom...');
       
-      // Request signature from Phantom
-      const signed = await window.solana.signTransaction(transaction);
+      // Request signature AND submission from Phantom
+      const { signature: txSig } = await window.solana.signAndSendTransaction(transaction);
       
-      console.log('Signed transaction:', signed);
-      console.log('All signatures:', signed.signatures);
+      console.log('Transaction signature:', txSig);
       
-      // Extract signature from the signed transaction
-      const sig = signed.signatures.find(s => 
-        s.publicKey.toString() === wallet
-      );
+      setSignature(txSig.slice(0, 32) + '...');
+      setTxSignature(txSig);
       
-      console.log('User signature object:', sig);
-      console.log('All signatures:', signed.signatures);
+      setStatus('✓ Transaction signed and submitted!');
       
-      if (sig && sig.signature) {
-        // Convert Uint8Array to hex string without using Buffer
-        const sigArray = Array.from(sig.signature);
-        const sigString = sigArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        console.log('User signature (hex):', sigString);
-        setSignature(sigString.slice(0, 32) + '...');
-        
-        // For the transaction signature, we'll serialize and send it
-        // Note: The transaction hasn't been sent yet, so there's no txid
-        // We'll just show the signature hash for now
-        setTxSignature(sigString);
-      }
+      // Wait for confirmation
+      setStatus('Confirming transaction...');
+      await connection.confirmTransaction(txSig, 'confirmed');
       
-      setStatus('✓ Transaction signed! (Requires second signature to submit)');
+      setStatus('✓ Transaction confirmed on blockchain!');
       
     } catch (err) {
       console.error('Full error:', err);
@@ -115,7 +100,7 @@ export default function PhantomMultiSigDApp() {
           <div className="inline-block p-3 bg-purple-100 rounded-full mb-4">
             <Wallet className="w-8 h-8 text-purple-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Multi-Sig dApp</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Phantom Wallet dApp</h1>
           <p className="text-gray-600">Solana Mainnet Transaction</p>
         </div>
 
@@ -182,21 +167,16 @@ export default function PhantomMultiSigDApp() {
               <p className="text-sm font-mono text-gray-800 break-all">{wallet}</p>
             </div>
 
-            <div className="p-4 bg-purple-50 rounded-lg">
-              <p className="text-xs text-purple-600 mb-1">Required Co-Signer</p>
-              <p className="text-sm font-mono text-purple-800 break-all">{REQUIRED_SIGNER}</p>
-            </div>
-
             <button
               onClick={signTransaction}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
             >
-              Sign Transaction
+              Sign & Send Transaction
             </button>
 
             {signature && (
               <div className="p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                <p className="text-xs text-green-700 font-semibold mb-1">✓ Signature Created</p>
+                <p className="text-xs text-green-700 font-semibold mb-1">✓ Transaction Submitted</p>
                 <p className="text-xs font-mono text-green-800 break-all">{signature}</p>
               </div>
             )}
@@ -216,7 +196,7 @@ export default function PhantomMultiSigDApp() {
 
             <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-xs text-blue-800">
-                <strong>Note:</strong> This transaction requires both your signature and the co-signer's signature before it can be submitted to the blockchain.
+                <strong>Note:</strong> This will sign and submit a memo transaction to the Solana blockchain. You'll need to approve the transaction in Phantom.
               </p>
             </div>
           </div>
