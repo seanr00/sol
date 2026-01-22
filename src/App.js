@@ -74,14 +74,9 @@ export default function PhantomMultiSigDApp() {
       
       setStatus('Fetching blockhash from Helius...');
       
-      // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash('confirmed');
+      // Get recent blockhash with lastValidBlockHeight for reliable confirmation
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
       
-      // Create a transaction
-      const transaction = new Transaction();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = new PublicKey(wallet);
-
       // Add memo instruction (simplified - only requires your signature)
       const memoData = new Uint8Array([77, 117, 108, 116, 105, 45, 115, 105, 103]); // "Multi-sig"
       const memoInstruction = new TransactionInstruction({
@@ -92,7 +87,10 @@ export default function PhantomMultiSigDApp() {
         data: memoData,
       });
       
-      transaction.add(memoInstruction);
+      // Create a transaction
+      const transaction = new Transaction().add(memoInstruction);
+      transaction.feePayer = provider.publicKey;
+      transaction.recentBlockhash = blockhash;
 
       setStatus(`Waiting for approval in ${walletType === 'phantom' ? 'Phantom' : 'Solflare'}...`);
       
@@ -108,7 +106,14 @@ export default function PhantomMultiSigDApp() {
       
       // Wait for confirmation
       setStatus('Confirming transaction...');
-      await connection.confirmTransaction(txSig, 'confirmed');
+      await connection.confirmTransaction(
+        {
+          signature: txSig,
+          blockhash,
+          lastValidBlockHeight
+        },
+        'confirmed'
+      );
       
       setStatus('✓ Transaction confirmed on blockchain!');
       
