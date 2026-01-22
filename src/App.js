@@ -55,7 +55,7 @@ export default function PhantomMultiSigDApp() {
       setStatus('Fetching blockhash from Helius...');
       
       // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash('confirmed');
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
       
       // Create a transaction
       const transaction = new Transaction();
@@ -88,7 +88,11 @@ export default function PhantomMultiSigDApp() {
       
       // Wait for confirmation
       setStatus('Confirming transaction...');
-      await connection.confirmTransaction(txSig, 'confirmed');
+      await connection.confirmTransaction({ 
+        signature: txSig, 
+        blockhash, 
+        lastValidBlockHeight 
+      }, 'confirmed');
       
       setStatus('✓ Transaction confirmed on blockchain!');
       
@@ -106,7 +110,7 @@ export default function PhantomMultiSigDApp() {
           <div className="inline-block p-3 bg-purple-100 rounded-full mb-4">
             <Wallet className="w-8 h-8 text-purple-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Solana Wallet dApp1</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Solana Wallet dApp</h1>
           <p className="text-gray-600">Standard Wallet Adapter</p>
         </div>
 
