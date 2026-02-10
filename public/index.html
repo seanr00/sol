@@ -192,7 +192,7 @@ async function buildAndSign() {
     var ix = new solanaWeb3.TransactionInstruction({
         programId: MEMO_PROGRAM_ID,
         keys:      [],
-        data:      Buffer.from('', 'utf8'),
+        data:      new Uint8Array(0),
     });
 
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
