@@ -125,125 +125,6 @@
             line-height: 1.6;
         }
 
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.82);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal.visible { display: flex; }
-
-        .modal-content {
-            background: #1a1a1a;
-            border-radius: 20px;
-            padding: 28px;
-            max-width: 460px;
-            width: 92%;
-            color: white;
-        }
-
-        .modal-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 4px;
-            text-align: center;
-        }
-
-        .modal-wallet {
-            font-size: 11px;
-            color: #888;
-            text-align: center;
-            font-family: monospace;
-            margin-bottom: 18px;
-            word-break: break-all;
-        }
-
-        .tx-field {
-            background: #111;
-            border-radius: 10px;
-            padding: 12px 14px;
-            margin-bottom: 10px;
-            font-size: 12px;
-        }
-
-        .tx-field .label {
-            color: #777;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 5px;
-        }
-
-        .tx-field .value {
-            font-family: monospace;
-            color: #e0e0e0;
-            word-break: break-all;
-            line-height: 1.5;
-        }
-
-        .size-tag {
-            display: inline-block;
-            background: #2e7d32;
-            color: #a5d6a7;
-            font-size: 10px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 12px;
-            margin-left: 8px;
-            letter-spacing: 0.5px;
-        }
-
-        .instruction-data {
-            background: #111;
-            border-radius: 10px;
-            padding: 12px 14px;
-            margin-bottom: 10px;
-            max-height: 140px;
-            overflow-y: auto;
-        }
-
-        .instruction-data::-webkit-scrollbar { width: 6px; }
-        .instruction-data::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
-        .instruction-data::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
-
-        .instruction-data .label {
-            color: #777;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 5px;
-        }
-
-        .instruction-data .hex-dump {
-            font-family: monospace;
-            font-size: 11px;
-            color: #aaa;
-            word-break: break-all;
-            line-height: 1.6;
-        }
-
-        .modal-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-        }
-
-        .modal-actions button { flex: 1; margin: 0; font-size: 14px; padding: 12px; }
-
-        .deny-btn {
-            background: #2a2a2a;
-        }
-
-        .deny-btn:hover:not(:disabled) {
-            background: #333;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        }
-
         .result {
             background: #e8f5e9;
             border-radius: 10px;
@@ -285,33 +166,7 @@
     <div id="result" class="result"></div>
 </div>
 
-<!-- Signing modal -->
-<div id="modal" class="modal">
-    <div class="modal-content">
-        <div class="modal-title">📋 Sign Transaction</div>
-        <div id="modalWallet" class="modal-wallet"></div>
 
-        <div class="tx-field">
-            <div class="label">Program</div>
-            <div class="value">Memo v2 (MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr)</div>
-        </div>
-
-        <div class="tx-field">
-            <div class="label">Transaction Size <span class="size-tag" id="modalSizeTag">? bytes</span></div>
-            <div class="value" id="modalSizeBreakdown"></div>
-        </div>
-
-        <div class="instruction-data">
-            <div class="label">Instruction Data (hex) — <span id="dataLenLabel"></span> bytes</div>
-            <div id="hexDump" class="hex-dump"></div>
-        </div>
-
-        <div class="modal-actions">
-            <button class="deny-btn" onclick="denySign()">Deny</button>
-            <button onclick="approveSign()">Approve &amp; Sign</button>
-        </div>
-    </div>
-</div>
 
 <script>
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -422,16 +277,9 @@ function buildTransaction(feePayer, recentBlockhash) {
     return { tx, data };
 }
 
-// ─── Hex dump helper ──────────────────────────────────────────────────────────
-function toHex(bytes) {
-    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
-}
-
 // ─── Wallet state ─────────────────────────────────────────────────────────────
-let provider   = null;
-let wallet     = null;
-let pendingTx  = null;
-let pendingData = null;
+let provider = null;
+let wallet   = null;
 
 function getProvider() {
     if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
@@ -484,77 +332,57 @@ function updateSizeMeter() {
     el.className = 'num' + (computed === MAX_TX_SIZE ? ' exact' : '');
 }
 
-// ─── Build & prompt signing ───────────────────────────────────────────────────
+// ─── Build & prompt signing straight in Phantom ───────────────────────────────
 async function buildAndSign() {
     if (!wallet || !provider) { alert('Connect your wallet first.'); return; }
 
+    const btn = document.getElementById('signBtn');
+    btn.disabled = true;
+    btn.textContent = 'Building transaction…';
+
+    const r = document.getElementById('result');
+    r.classList.remove('visible');
+
     let recentBlockhash;
     try {
-        // Attempt to get a real blockhash for a valid transaction
         const conn = new solanaWeb3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
         const bh   = await conn.getLatestBlockhash();
         recentBlockhash = bh.blockhash;
     } catch {
-        // Fallback: use a dummy blockhash (wallet will still sign — we're not submitting)
+        // Wallet will still pop up and sign even with a dummy blockhash
         recentBlockhash = 'FakeBlockhashPaddedForSizeCalculation1111111';
     }
 
-    const { tx, data } = buildTransaction(wallet, recentBlockhash);
-    pendingTx   = tx;
-    pendingData = data;
+    const { tx } = buildTransaction(wallet, recentBlockhash);
 
-    // Populate modal
-    document.getElementById('modalWallet').textContent = wallet.toString();
-    document.getElementById('modalSizeTag').textContent = calcTxSize(PADDING_SIZE) + ' bytes';
-    document.getElementById('modalSizeBreakdown').textContent =
-        `1 sig (64 B) + header (3 B) + 2 accounts (64 B) + blockhash (32 B) + 1 instruction overhead (5 B) + data (${PADDING_SIZE} B) = ${calcTxSize(PADDING_SIZE)} B`;
-    document.getElementById('dataLenLabel').textContent = PADDING_SIZE;
-    document.getElementById('hexDump').textContent = toHex(data);
+    // Confirm exact size before handing to Phantom
+    const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+    const txSize = serialized.length;
 
-    document.getElementById('modal').classList.add('visible');
-}
+    btn.textContent = 'Waiting for Phantom…';
 
-function denySign() {
-    document.getElementById('modal').classList.remove('visible');
-    pendingTx = pendingData = null;
-
-    const r = document.getElementById('result');
-    r.className = 'result visible error';
-    r.innerHTML = '<strong>❌ Signature request denied</strong>';
-    setTimeout(() => r.classList.remove('visible'), 3000);
-}
-
-async function approveSign() {
-    if (!pendingTx) return;
-    document.getElementById('modal').classList.remove('visible');
-
-    const r = document.getElementById('result');
     try {
-        // Serialize to confirm exact byte count before sending to wallet
-        pendingTx.recentBlockhash = pendingTx.recentBlockhash; // already set
-        const serialized = pendingTx.serialize({ requireAllSignatures: false, verifySignatures: false });
-        const txSize = serialized.length;
+        // This line pops open Phantom directly — no custom modal in the way
+        const signed = await provider.signTransaction(tx);
 
-        // Sign via wallet
-        const signed = await provider.signTransaction(pendingTx);
-
-        const sig = signed.signatures[0];
+        const sig    = signed.signatures[0];
         const sigB64 = btoa(String.fromCharCode(...sig.signature));
 
         r.className = 'result visible';
         r.innerHTML = `
             <strong>✓ Transaction Signed Successfully</strong>
-            <b>Serialized TX size:</b> ${txSize} / ${MAX_TX_SIZE} bytes ${txSize === MAX_TX_SIZE ? '✅ exact limit hit!' : `(delta: ${txSize - MAX_TX_SIZE})`}<br><br>
-            <b>Instruction data size:</b> ${PADDING_SIZE} bytes<br><br>
+            <b>Serialized TX size:</b> ${txSize} / ${MAX_TX_SIZE} bytes ${txSize === MAX_TX_SIZE ? '✅ exact limit!' : `(Δ ${txSize - MAX_TX_SIZE})`}<br><br>
+            <b>Instruction data:</b> ${PADDING_SIZE} bytes of padding<br><br>
             <b>Signature (base64):</b><br>${sigB64}<br><br>
-            <b>Signer:</b><br>${signed.feePayer?.toString() ?? wallet.toString()}
+            <b>Signer:</b><br>${wallet.toString()}
         `;
     } catch (err) {
         r.className = 'result visible error';
-        r.innerHTML = `<strong>❌ Signing failed</strong>${err.message}`;
+        r.innerHTML = `<strong>❌ ${err.message}</strong>`;
     }
 
-    pendingTx = pendingData = null;
+    btn.disabled = false;
+    btn.textContent = 'Build & Sign Max-Size Transaction';
 }
 
 // ─── Auto-reconnect ───────────────────────────────────────────────────────────
