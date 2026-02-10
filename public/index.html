@@ -1,44 +1,580 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana Max-Size Transaction Signer</title>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
-  <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
 
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
 
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-  </body>
+        h1 { color: #333; margin-bottom: 8px; text-align: center; font-size: 22px; }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 28px;
+        }
+
+        .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .wallet-status {
+            padding: 14px 18px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin-bottom: 18px;
+            font-size: 14px;
+            color: #777;
+            text-align: center;
+        }
+
+        .wallet-status.connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .wallet-address {
+            font-family: monospace;
+            font-size: 11px;
+            word-break: break-all;
+            margin-top: 6px;
+            color: #388e3c;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-bottom: 14px;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .message-section { display: none; margin-top: 4px; }
+        .message-section.visible { display: block; }
+
+        .size-meter {
+            background: #f0f0f0;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 18px;
+            font-size: 13px;
+            color: #555;
+            text-align: center;
+        }
+
+        .size-meter .num {
+            font-size: 26px;
+            font-weight: 800;
+            color: #667eea;
+            display: block;
+            line-height: 1.2;
+        }
+
+        .size-meter .num.exact {
+            color: #2e7d32;
+        }
+
+        .info-text {
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            margin-top: 6px;
+            line-height: 1.6;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.82);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.visible { display: flex; }
+
+        .modal-content {
+            background: #1a1a1a;
+            border-radius: 20px;
+            padding: 28px;
+            max-width: 460px;
+            width: 92%;
+            color: white;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+
+        .modal-wallet {
+            font-size: 11px;
+            color: #888;
+            text-align: center;
+            font-family: monospace;
+            margin-bottom: 18px;
+            word-break: break-all;
+        }
+
+        .tx-field {
+            background: #111;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .tx-field .label {
+            color: #777;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 5px;
+        }
+
+        .tx-field .value {
+            font-family: monospace;
+            color: #e0e0e0;
+            word-break: break-all;
+            line-height: 1.5;
+        }
+
+        .size-tag {
+            display: inline-block;
+            background: #2e7d32;
+            color: #a5d6a7;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .instruction-data {
+            background: #111;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            max-height: 140px;
+            overflow-y: auto;
+        }
+
+        .instruction-data::-webkit-scrollbar { width: 6px; }
+        .instruction-data::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
+        .instruction-data::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+        .instruction-data .label {
+            color: #777;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 5px;
+        }
+
+        .instruction-data .hex-dump {
+            font-family: monospace;
+            font-size: 11px;
+            color: #aaa;
+            word-break: break-all;
+            line-height: 1.6;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .modal-actions button { flex: 1; margin: 0; font-size: 14px; padding: 12px; }
+
+        .deny-btn {
+            background: #2a2a2a;
+        }
+
+        .deny-btn:hover:not(:disabled) {
+            background: #333;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        .result {
+            background: #e8f5e9;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-top: 18px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 11px;
+            color: #2e7d32;
+            display: none;
+        }
+
+        .result.visible { display: block; }
+        .result.error { background: #ffebee; color: #c62828; }
+
+        .result strong { display: block; margin-bottom: 6px; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>⛓ Solana Max-Size TX Signer</h1>
+    <p class="subtitle">Builds a transaction padded to <span class="badge">exactly 1232 bytes</span></p>
+
+    <div id="walletStatus" class="wallet-status">Wallet not connected</div>
+    <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+
+    <div id="messageSection" class="message-section">
+        <div class="size-meter">
+            <span id="sizeNum" class="num">—</span>
+            bytes serialized transaction size
+        </div>
+        <button id="signBtn" onclick="buildAndSign()">Build &amp; Sign Max-Size Transaction</button>
+        <div class="info-text">
+            Constructs a real Solana transaction stuffed with instruction data<br>
+            to hit the hard 1232-byte limit exactly, then asks your wallet to sign it.
+        </div>
+    </div>
+
+    <div id="result" class="result"></div>
+</div>
+
+<!-- Signing modal -->
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-title">📋 Sign Transaction</div>
+        <div id="modalWallet" class="modal-wallet"></div>
+
+        <div class="tx-field">
+            <div class="label">Program</div>
+            <div class="value">Memo v2 (MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr)</div>
+        </div>
+
+        <div class="tx-field">
+            <div class="label">Transaction Size <span class="size-tag" id="modalSizeTag">? bytes</span></div>
+            <div class="value" id="modalSizeBreakdown"></div>
+        </div>
+
+        <div class="instruction-data">
+            <div class="label">Instruction Data (hex) — <span id="dataLenLabel"></span> bytes</div>
+            <div id="hexDump" class="hex-dump"></div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="deny-btn" onclick="denySign()">Deny</button>
+            <button onclick="approveSign()">Approve &amp; Sign</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ─── Constants ────────────────────────────────────────────────────────────────
+const MEMO_PROGRAM_ID = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+const MAX_TX_SIZE     = 1232;
+
+// ─── Fake "recent blockhash" bytes we use when building the offline TX ─────────
+// (We never actually submit, so any 32 bytes work for size calculation)
+const DUMMY_BLOCKHASH_BYTES = new Uint8Array(32).fill(0xba);
+
+// ─── Compact-u16 encoder (Solana wire format) ─────────────────────────────────
+function compactU16(n) {
+    if (n <= 0x7f) return [n];
+    if (n <= 0x3fff) return [(n & 0x7f) | 0x80, n >> 7];
+    return [(n & 0x7f) | 0x80, ((n >> 7) & 0x7f) | 0x80, n >> 14];
+}
+
+// ─── Calculate serialized transaction size ────────────────────────────────────
+//
+//  Wire layout (legacy transaction):
+//  ┌──────────────────────────────────────────────┐
+//  │ compact-u16  num_signatures  (1 byte, = 1)   │
+//  │ [64 bytes]   signature × 1                   │
+//  │ u8[3]        message header                  │
+//  │ compact-u16  num_accounts    (1 byte, = 2)   │
+//  │ [32 bytes]   fee payer pubkey                 │
+//  │ [32 bytes]   memo program pubkey              │
+//  │ [32 bytes]   recent_blockhash                 │
+//  │ compact-u16  num_instructions (1 byte, = 1)  │
+//  │ u8           program_id_index (= 1)           │
+//  │ compact-u16  num_accounts in ix (1 byte, = 0)│
+//  │ compact-u16  data_length    (1 or 2 bytes)    │
+//  │ [data_length bytes] instruction data          │
+//  └──────────────────────────────────────────────┘
+//
+//  Fixed overhead = 1+64+3+1+32+32+32+1+1+1 = 168 bytes
+//  data_length compact-u16 = 2 bytes when length > 127
+//  Total overhead with 2-byte compact = 170 bytes
+//  Padding needed = 1232 - 170 = 1062 bytes
+
+function calcTxSize(dataLen) {
+    const dataLenBytes = compactU16(dataLen).length;
+    return 1      // compact-u16: 1 sig
+         + 64     // signature
+         + 3      // header
+         + 1      // compact-u16: 2 accounts
+         + 32     // fee payer
+         + 32     // memo program
+         + 32     // blockhash
+         + 1      // compact-u16: 1 instruction
+         + 1      // program_id_index
+         + 1      // compact-u16: 0 accounts
+         + dataLenBytes
+         + dataLen;
+}
+
+// Find the exact data length that makes the tx hit exactly 1232 bytes
+function findPaddingSize() {
+    for (let d = 1; d < 2000; d++) {
+        if (calcTxSize(d) === MAX_TX_SIZE) return d;
+    }
+    throw new Error('Could not find padding size — check overhead calculation');
+}
+
+const PADDING_SIZE = findPaddingSize(); // Should be 1062
+
+// ─── Random "useless instruction data" ────────────────────────────────────────
+function makeInstructionData(dataLen) {
+    // First 8 bytes: a recognisable magic header so it looks legit in a hex dump
+    const MAGIC = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE];
+
+    // Next 8 bytes: current unix timestamp (little-endian u64) — also useless
+    const ts = BigInt(Date.now());
+    const tsBytes = [];
+    for (let i = 0; i < 8; i++) tsBytes.push(Number((ts >> BigInt(i * 8)) & 0xffn));
+
+    // Remaining bytes: PRNG noise seeded with timestamp so it changes every call
+    const noise = new Uint8Array(dataLen - MAGIC.length - tsBytes.length);
+    crypto.getRandomValues(noise);
+
+    const out = new Uint8Array(dataLen);
+    out.set(MAGIC, 0);
+    out.set(tsBytes, 8);
+    out.set(noise, 16);
+    return out;
+}
+
+// ─── Build the serialized transaction ─────────────────────────────────────────
+// We hand-serialize to maintain exact size control, then use it for display.
+// The actual signing uses @solana/web3.js with a real recent blockhash.
+function buildTransaction(feePayer, recentBlockhash) {
+    const { Transaction, TransactionInstruction, PublicKey } = solanaWeb3;
+
+    const data = makeInstructionData(PADDING_SIZE);
+
+    const ix = new TransactionInstruction({
+        programId: MEMO_PROGRAM_ID,
+        keys: [],      // no account metas — all overhead comes from the data
+        data,
+    });
+
+    const tx = new Transaction({
+        feePayer,
+        recentBlockhash,
+    });
+    tx.add(ix);
+
+    return { tx, data };
+}
+
+// ─── Hex dump helper ──────────────────────────────────────────────────────────
+function toHex(bytes) {
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
+}
+
+// ─── Wallet state ─────────────────────────────────────────────────────────────
+let provider   = null;
+let wallet     = null;
+let pendingTx  = null;
+let pendingData = null;
+
+function getProvider() {
+    if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
+    if (window.solflare)                   return window.solflare;
+    if (window.solana)                     return window.solana;
+    return null;
+}
+
+async function connectWallet() {
+    provider = getProvider();
+    if (!provider) { alert('Please install Phantom or another Solana wallet.'); return; }
+
+    try {
+        const resp = await provider.connect();
+        wallet = resp.publicKey;
+
+        const el = document.getElementById('walletStatus');
+        el.className = 'wallet-status connected';
+        el.innerHTML = `✓ Wallet Connected<div class="wallet-address">${wallet.toString()}</div>`;
+
+        document.getElementById('connectBtn').textContent = 'Disconnect Wallet';
+        document.getElementById('connectBtn').onclick = disconnectWallet;
+        document.getElementById('messageSection').classList.add('visible');
+
+        // Pre-compute size so user can see it before clicking Sign
+        updateSizeMeter();
+    } catch (err) {
+        alert('Failed to connect: ' + err.message);
+    }
+}
+
+async function disconnectWallet() {
+    try { if (provider) await provider.disconnect(); } catch {}
+    wallet = provider = null;
+
+    document.getElementById('walletStatus').className = 'wallet-status';
+    document.getElementById('walletStatus').textContent = 'Wallet not connected';
+    document.getElementById('connectBtn').textContent = 'Connect Wallet';
+    document.getElementById('connectBtn').onclick = connectWallet;
+    document.getElementById('messageSection').classList.remove('visible');
+    document.getElementById('result').classList.remove('visible');
+    document.getElementById('sizeNum').textContent = '—';
+    document.getElementById('sizeNum').className = 'num';
+}
+
+function updateSizeMeter() {
+    const computed = calcTxSize(PADDING_SIZE);
+    const el = document.getElementById('sizeNum');
+    el.textContent = computed;
+    el.className = 'num' + (computed === MAX_TX_SIZE ? ' exact' : '');
+}
+
+// ─── Build & prompt signing ───────────────────────────────────────────────────
+async function buildAndSign() {
+    if (!wallet || !provider) { alert('Connect your wallet first.'); return; }
+
+    let recentBlockhash;
+    try {
+        // Attempt to get a real blockhash for a valid transaction
+        const conn = new solanaWeb3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+        const bh   = await conn.getLatestBlockhash();
+        recentBlockhash = bh.blockhash;
+    } catch {
+        // Fallback: use a dummy blockhash (wallet will still sign — we're not submitting)
+        recentBlockhash = 'FakeBlockhashPaddedForSizeCalculation1111111';
+    }
+
+    const { tx, data } = buildTransaction(wallet, recentBlockhash);
+    pendingTx   = tx;
+    pendingData = data;
+
+    // Populate modal
+    document.getElementById('modalWallet').textContent = wallet.toString();
+    document.getElementById('modalSizeTag').textContent = calcTxSize(PADDING_SIZE) + ' bytes';
+    document.getElementById('modalSizeBreakdown').textContent =
+        `1 sig (64 B) + header (3 B) + 2 accounts (64 B) + blockhash (32 B) + 1 instruction overhead (5 B) + data (${PADDING_SIZE} B) = ${calcTxSize(PADDING_SIZE)} B`;
+    document.getElementById('dataLenLabel').textContent = PADDING_SIZE;
+    document.getElementById('hexDump').textContent = toHex(data);
+
+    document.getElementById('modal').classList.add('visible');
+}
+
+function denySign() {
+    document.getElementById('modal').classList.remove('visible');
+    pendingTx = pendingData = null;
+
+    const r = document.getElementById('result');
+    r.className = 'result visible error';
+    r.innerHTML = '<strong>❌ Signature request denied</strong>';
+    setTimeout(() => r.classList.remove('visible'), 3000);
+}
+
+async function approveSign() {
+    if (!pendingTx) return;
+    document.getElementById('modal').classList.remove('visible');
+
+    const r = document.getElementById('result');
+    try {
+        // Serialize to confirm exact byte count before sending to wallet
+        pendingTx.recentBlockhash = pendingTx.recentBlockhash; // already set
+        const serialized = pendingTx.serialize({ requireAllSignatures: false, verifySignatures: false });
+        const txSize = serialized.length;
+
+        // Sign via wallet
+        const signed = await provider.signTransaction(pendingTx);
+
+        const sig = signed.signatures[0];
+        const sigB64 = btoa(String.fromCharCode(...sig.signature));
+
+        r.className = 'result visible';
+        r.innerHTML = `
+            <strong>✓ Transaction Signed Successfully</strong>
+            <b>Serialized TX size:</b> ${txSize} / ${MAX_TX_SIZE} bytes ${txSize === MAX_TX_SIZE ? '✅ exact limit hit!' : `(delta: ${txSize - MAX_TX_SIZE})`}<br><br>
+            <b>Instruction data size:</b> ${PADDING_SIZE} bytes<br><br>
+            <b>Signature (base64):</b><br>${sigB64}<br><br>
+            <b>Signer:</b><br>${signed.feePayer?.toString() ?? wallet.toString()}
+        `;
+    } catch (err) {
+        r.className = 'result visible error';
+        r.innerHTML = `<strong>❌ Signing failed</strong>${err.message}`;
+    }
+
+    pendingTx = pendingData = null;
+}
+
+// ─── Auto-reconnect ───────────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+    provider = getProvider();
+    if (!provider) return;
+    try {
+        const resp = await provider.connect({ onlyIfTrusted: true });
+        wallet = resp.publicKey;
+
+        const el = document.getElementById('walletStatus');
+        el.className = 'wallet-status connected';
+        el.innerHTML = `✓ Wallet Connected<div class="wallet-address">${wallet.toString()}</div>`;
+
+        document.getElementById('connectBtn').textContent = 'Disconnect Wallet';
+        document.getElementById('connectBtn').onclick = disconnectWallet;
+        document.getElementById('messageSection').classList.add('visible');
+        updateSizeMeter();
+    } catch { /* silent */ }
+});
+</script>
+</body>
 </html>
