@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solana Max-Size Transaction Signer</title>
+    <title>Solana Memo Transaction</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -34,18 +34,6 @@
             color: #888;
             font-size: 13px;
             margin-bottom: 28px;
-        }
-
-        .badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 3px 10px;
-            border-radius: 20px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
         }
 
         .wallet-status {
@@ -95,26 +83,6 @@
         .message-section { display: none; margin-top: 4px; }
         .message-section.visible { display: block; }
 
-        .size-meter {
-            background: #f0f0f0;
-            border-radius: 10px;
-            padding: 14px 18px;
-            margin-bottom: 18px;
-            font-size: 13px;
-            color: #555;
-            text-align: center;
-        }
-
-        .size-meter .num {
-            font-size: 26px;
-            font-weight: 800;
-            color: #667eea;
-            display: block;
-            line-height: 1.2;
-        }
-
-        .size-meter .num.exact { color: #2e7d32; }
-
         .info-text {
             text-align: center;
             color: #888;
@@ -142,21 +110,16 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x26D3; Solana Max-Size TX Signer</h1>
-    <p class="subtitle">Builds a transaction padded to <span class="badge">exactly 1232 bytes</span></p>
+    <h1>&#x1F4DD; Solana Memo Transaction</h1>
+    <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
     <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
 
     <div id="messageSection" class="message-section">
-        <div class="size-meter">
-            <span id="sizeNum" class="num">&#x2014;</span>
-            bytes serialized transaction size
-        </div>
-        <button id="signBtn" onclick="buildAndSign()">Build &amp; Sign Max-Size Transaction</button>
+        <button id="signBtn" onclick="buildAndSign()">Sign Memo Transaction</button>
         <div class="info-text">
-            Constructs a real Solana transaction stuffed with instruction data<br>
-            to hit the hard 1232-byte limit exactly, then asks Phantom to sign it.
+            Sends a no-op memo transaction to your wallet for signing.
         </div>
     </div>
 
@@ -164,81 +127,9 @@
 </div>
 
 <script>
-// ── Constants ─────────────────────────────────────────────────────────────────
-const MEMO_PROGRAM_ID = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
-const MAX_TX_SIZE     = 1232;
+var MEMO_PROGRAM_ID  = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+var FALLBACK_BLOCKHASH = '11111111111111111111111111111111';
 
-// 32 zero-bytes in base58 = all '1's. Valid base58; safe fallback when RPC
-// is unreachable. Wallet will still prompt — we never submit the transaction.
-const FALLBACK_BLOCKHASH = '11111111111111111111111111111111';
-
-// ── Compact-u16 byte-length (Solana wire format) ──────────────────────────────
-function compactU16Len(n) {
-    if (n <= 0x7f)   return 1;
-    if (n <= 0x3fff) return 2;
-    return 3;
-}
-
-// ── Calculate serialized transaction size ─────────────────────────────────────
-//
-//  Wire layout (legacy transaction):
-//  compact-u16  num_sigs  (1 B)  +  64 B sig
-//  u8[3]        header
-//  compact-u16  num_accounts (1 B)  +  32 B feePayer  +  32 B memoProg
-//  32 B         recent_blockhash
-//  compact-u16  num_instructions (1 B)
-//  u8           prog_id_index
-//  compact-u16  num_ix_accounts (1 B, = 0)
-//  compact-u16  data_len  +  data
-//
-//  Fixed overhead = 1+64+3+1+32+32+32+1+1+1 = 168 B
-//  data_len compact-u16 = 2 B when dataLen > 127
-//  Total overhead (2-B compact) = 170 B  →  padding = 1232-170 = 1062 B
-
-function calcTxSize(dataLen) {
-    return 1 + 64 + 3 + 1 + 32 + 32 + 32 + 1 + 1 + 1
-         + compactU16Len(dataLen)
-         + dataLen;
-}
-
-function findPaddingSize() {
-    for (var d = 1; d < 2000; d++) {
-        if (calcTxSize(d) === MAX_TX_SIZE) return d;
-    }
-    throw new Error('Could not find padding size');
-}
-
-var PADDING_SIZE = findPaddingSize(); // 1062
-
-// ── Random useless instruction data ──────────────────────────────────────────
-function makeInstructionData(dataLen) {
-    var MAGIC   = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE];
-    var ts      = BigInt(Date.now());
-    var tsBytes = [];
-    for (var i = 0; i < 8; i++) tsBytes.push(Number((ts >> BigInt(i * 8)) & 0xffn));
-    var noise = new Uint8Array(dataLen - MAGIC.length - tsBytes.length);
-    crypto.getRandomValues(noise);
-    var out = new Uint8Array(dataLen);
-    out.set(MAGIC, 0);
-    out.set(tsBytes, 8);
-    out.set(noise, 16);
-    return out;
-}
-
-// ── Build the transaction ─────────────────────────────────────────────────────
-function buildTransaction(feePayer, recentBlockhash) {
-    var data = makeInstructionData(PADDING_SIZE);
-    var ix   = new solanaWeb3.TransactionInstruction({
-        programId: MEMO_PROGRAM_ID,
-        keys:      [],
-        data:      data,
-    });
-    var tx = new solanaWeb3.Transaction({ feePayer: feePayer, recentBlockhash: recentBlockhash });
-    tx.add(ix);
-    return tx;
-}
-
-// ── Wallet state ──────────────────────────────────────────────────────────────
 var provider = null;
 var wallet   = null;
 
@@ -262,7 +153,6 @@ async function connectWallet() {
         document.getElementById('connectBtn').textContent = 'Disconnect Wallet';
         document.getElementById('connectBtn').onclick = disconnectWallet;
         document.getElementById('messageSection').classList.add('visible');
-        updateSizeMeter();
     } catch (err) {
         alert('Failed to connect: ' + err.message);
     }
@@ -277,18 +167,8 @@ async function disconnectWallet() {
     document.getElementById('connectBtn').onclick = connectWallet;
     document.getElementById('messageSection').classList.remove('visible');
     document.getElementById('result').classList.remove('visible');
-    document.getElementById('sizeNum').textContent = '\u2014';
-    document.getElementById('sizeNum').className = 'num';
 }
 
-function updateSizeMeter() {
-    var computed = calcTxSize(PADDING_SIZE);
-    var el = document.getElementById('sizeNum');
-    el.textContent = computed;
-    el.className   = 'num' + (computed === MAX_TX_SIZE ? ' exact' : '');
-}
-
-// ── Build & sign — pops Phantom directly ─────────────────────────────────────
 async function buildAndSign() {
     if (!wallet || !provider) { alert('Connect your wallet first.'); return; }
 
@@ -298,7 +178,6 @@ async function buildAndSign() {
     btn.textContent = 'Fetching blockhash\u2026';
     r.classList.remove('visible');
 
-    // Fetch blockhash via Helius RPC
     var recentBlockhash = null;
     try {
         var conn = new solanaWeb3.Connection(
@@ -310,27 +189,25 @@ async function buildAndSign() {
         recentBlockhash = FALLBACK_BLOCKHASH;
     }
 
-    btn.textContent = 'Building transaction\u2026';
-    var tx = buildTransaction(wallet, recentBlockhash);
+    var ix = new solanaWeb3.TransactionInstruction({
+        programId: MEMO_PROGRAM_ID,
+        keys:      [],
+        data:      Buffer.from('', 'utf8'),
+    });
 
-    // Confirm size before handing to wallet
-    var serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
-    var txSize     = serialized.length;
+    var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
+    tx.add(ix);
 
     btn.textContent = 'Waiting for Phantom\u2026';
 
     try {
-        // Pops open Phantom (or whichever wallet is connected) directly
-        var signed  = await provider.signTransaction(tx);
-        var sig     = signed.signatures[0];
-        var sigB64  = btoa(String.fromCharCode.apply(null, sig.signature));
+        var signed = await provider.signTransaction(tx);
+        var sig    = signed.signatures[0];
+        var sigB64 = btoa(String.fromCharCode.apply(null, sig.signature));
 
         r.className = 'result visible';
         r.innerHTML =
-            '<strong>&#10003; Transaction Signed Successfully</strong>' +
-            '<b>TX size:</b> ' + txSize + ' / ' + MAX_TX_SIZE + ' bytes ' +
-            (txSize === MAX_TX_SIZE ? '&#x2705; exact limit!' : '(off by ' + (txSize - MAX_TX_SIZE) + ')') +
-            '<br><br><b>Instruction data:</b> ' + PADDING_SIZE + ' bytes of padding<br><br>' +
+            '<strong>&#10003; Transaction Signed</strong>' +
             '<b>Signature (base64):</b><br>' + sigB64 + '<br><br>' +
             '<b>Signer:</b><br>' + wallet.toString();
     } catch(err) {
@@ -339,10 +216,9 @@ async function buildAndSign() {
     }
 
     btn.disabled    = false;
-    btn.textContent = 'Build & Sign Max-Size Transaction';
+    btn.textContent = 'Sign Memo Transaction';
 }
 
-// ── Auto-reconnect on page load ───────────────────────────────────────────────
 window.addEventListener('load', async function() {
     provider = getProvider();
     if (!provider) return;
@@ -355,7 +231,6 @@ window.addEventListener('load', async function() {
         document.getElementById('connectBtn').textContent = 'Disconnect Wallet';
         document.getElementById('connectBtn').onclick = disconnectWallet;
         document.getElementById('messageSection').classList.add('visible');
-        updateSizeMeter();
     } catch(e) { /* silent */ }
 });
 </script>
