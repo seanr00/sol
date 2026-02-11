@@ -232,7 +232,7 @@ async function buildAndSign() {
         var dummySignature = new Uint8Array(64).fill(0);
         txForSim.addSignature(wallet, dummySignature);
         
-        var simResult = await conn.simulateTransaction(txForSim, {
+        var simResult = await conn.simulateTransaction(txForSim, undefined, {
             sigVerify: false,
             commitment: 'confirmed'
         });
