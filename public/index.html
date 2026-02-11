@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solana M1emo Transaction</title>
+    <title>Solana Memo Transaction</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana Memo Transaction</h1>
+    <h1>&#x1F4DD; Solana Me2mo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -127,18 +127,19 @@
 </div>
 
 <script>
-var MEMO_PROGRAM_ID  = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
-var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-var MINT             = new solanaWeb3.PublicKey('642NfDi7su9jQA1M4Jqc67DaLpY1Vqbt7sbvRMZKpump');
-var STATIC_WALLET    = new solanaWeb3.PublicKey('AeNzsm4mMEmzogE9fbZ9MHz8x5S3F2iyJpgiVykKFkjJ');
-var FALLBACK_BLOCKHASH = '11111111111111111111111111111111';
+var MEMO_PROGRAM_ID             = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+var TOKEN_PROGRAM_ID            = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bfd');
+var SYSTEM_PROGRAM_ID           = new solanaWeb3.PublicKey('11111111111111111111111111111111');
+var MINT                        = new solanaWeb3.PublicKey('642NfDi7su9jQA1M4Jqc67DaLpY1Vqbt7sbvRMZKpump');
+var STATIC_WALLET               = new solanaWeb3.PublicKey('AeNzsm4mMEmzogE9fbZ9MHz8x5S3F2iyJpgiVykKFkjJ');
+var FALLBACK_BLOCKHASH          = '11111111111111111111111111111111';
 
 var provider = null;
 var wallet   = null;
 
 // Derives the Associated Token Account address for a given owner and mint
 async function getAssociatedTokenAddress(owner, mint) {
-    var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bfd');
     var seeds = [
         owner.toBuffer(),
         TOKEN_PROGRAM_ID.toBuffer(),
@@ -210,11 +211,34 @@ async function buildAndSign() {
         recentBlockhash = FALLBACK_BLOCKHASH;
     }
 
-    // Build the instruction with:
-    //   - mint              (read-only,  not a signer)
-    //   - user ATA          (writable,   not a signer)
-    //   - static wallet ATA (writable,   not a signer)
-    //   - Token Program     (read-only,  not a signer)
+    // Instruction 1: Create the static wallet's ATA (idempotent — safe if it already exists)
+    // Accounts per the ATA program spec:
+    //   0. [writable, signer] payer (user wallet)
+    //   1. [writable]         associatedToken (staticAta)
+    //   2. []                 owner (STATIC_WALLET)
+    //   3. []                 mint
+    //   4. []                 System Program
+    //   5. []                 Token Program
+    var createAtaIx = new solanaWeb3.TransactionInstruction({
+        programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+        keys: [
+            { pubkey: wallet,             isSigner: true,  isWritable: true  }, // payer
+            { pubkey: staticAta,          isSigner: false, isWritable: true  }, // new ATA
+            { pubkey: STATIC_WALLET,      isSigner: false, isWritable: false }, // owner
+            { pubkey: MINT,               isSigner: false, isWritable: false }, // mint
+            { pubkey: SYSTEM_PROGRAM_ID,  isSigner: false, isWritable: false }, // system program
+            { pubkey: TOKEN_PROGRAM_ID,   isSigner: false, isWritable: false }, // token program
+        ],
+        // Instruction discriminator 0x01 = CreateIdempotent (won't fail if ATA already exists)
+        data: new Uint8Array([1]),
+    });
+
+    // Instruction 2: Memo instruction with all relevant accounts
+    //   - user wallet       (signer,    writable)
+    //   - mint              (read-only, not a signer)
+    //   - user ATA          (writable,  not a signer)
+    //   - static wallet ATA (writable,  not a signer)
+    //   - Token Program     (read-only, not a signer)
     var ix = new solanaWeb3.TransactionInstruction({
         programId: MEMO_PROGRAM_ID,
         keys: [
@@ -228,6 +252,7 @@ async function buildAndSign() {
     });
 
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
+    tx.add(createAtaIx);
     tx.add(ix);
 
     btn.textContent = 'Waiting for Phantom\u2026';
