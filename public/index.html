@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana 1Memo Transaction</h1>
+    <h1>&#x1F4DD; Solana Memo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -222,13 +222,14 @@ async function buildAndSign() {
     tx.add(ix);
 
     // Simulate before prompting the user to sign
-    // Use replaceRecentBlockhash and sigVerify: false to skip signature verification
+    // Use commitment and sigVerify options
     btn.textContent = 'Simulating\u2026';
     try {
-        var simResult = await conn.simulateTransaction(tx, {
-            replaceRecentBlockhash: true,
-            sigVerify: false
-        });
+        var message = solanaWeb3.Message.from(tx.serializeMessage());
+        var simResult = await conn.simulateTransaction(
+            new solanaWeb3.VersionedTransaction(message),
+            { sigVerify: false }
+        );
         console.group('[Memo TX] Simulation result');
         console.log('Full result:', simResult);
         console.log('err:',           simResult.value.err);
