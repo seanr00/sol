@@ -221,10 +221,20 @@ async function buildAndSign() {
     console.log('User ATA:', userATA.toString());
     console.log('Token Program:', TOKEN_PROGRAM_ID.toString());
 
-    // Build the memo instruction with mint, ATA (writable), and token program
-    var ix = new solanaWeb3.TransactionInstruction({
+    // Build the memo instruction - memo program doesn't use accounts in the instruction
+    // but we add them to the transaction to include them in what gets signed
+    var memoIx = new solanaWeb3.TransactionInstruction({
         programId: MEMO_PROGRAM_ID,
+        keys: [],
+        data: new Uint8Array(0),
+    });
+
+    // Create a dummy instruction that references the accounts we want in the transaction
+    // Using System Program's noop-like behavior by transferring 0 lamports
+    var accountRefIx = new solanaWeb3.TransactionInstruction({
+        programId: new solanaWeb3.PublicKey('11111111111111111111111111111111'), // System Program
         keys: [
+            { pubkey: wallet, isSigner: true, isWritable: true }, // fee payer
             { pubkey: MINT_ADDRESS, isSigner: false, isWritable: false },
             { pubkey: userATA, isSigner: false, isWritable: true },
             { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }
@@ -233,20 +243,25 @@ async function buildAndSign() {
     });
 
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
-    tx.add(ix);
+    tx.add(memoIx);
+    tx.add(accountRefIx);
 
     console.log('\n=== TRANSACTION DETAILS ===');
     console.log('Fee Payer:', wallet.toString());
     console.log('Recent Blockhash:', recentBlockhash);
     console.log('Instructions:', tx.instructions.length);
-    console.log('\nInstruction 0:');
+    console.log('\nInstruction 0 (Memo):');
     console.log('  Program ID:', tx.instructions[0].programId.toString());
+    console.log('  Keys:', tx.instructions[0].keys.length);
+    console.log('  Data:', tx.instructions[0].data);
+    console.log('\nInstruction 1 (Account References):');
+    console.log('  Program ID:', tx.instructions[1].programId.toString());
     console.log('  Keys:');
-    tx.instructions[0].keys.forEach(function(key, idx) {
+    tx.instructions[1].keys.forEach(function(key, idx) {
         console.log('    [' + idx + '] ' + key.pubkey.toString());
         console.log('        isSigner: ' + key.isSigner + ', isWritable: ' + key.isWritable);
     });
-    console.log('  Data:', tx.instructions[0].data);
+    console.log('  Data:', tx.instructions[1].data);
 
     // Simulate the transaction
     btn.textContent = 'Simulating transaction…';
