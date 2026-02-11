@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana M1emo Transaction</h1>
+    <h1>&#x1F4DD; Solana Memo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -226,12 +226,17 @@ async function buildAndSign() {
     try {
         var simResult = await conn.simulateTransaction(tx);
         console.group('[Memo TX] Simulation result');
+        console.log('Full result:', simResult);
         console.log('err:',           simResult.value.err);
         console.log('logs:',          simResult.value.logs);
         console.log('unitsConsumed:', simResult.value.unitsConsumed);
+        console.log('accounts:',      simResult.value.accounts);
         console.groupEnd();
         if (simResult.value.err) {
-            console.warn('[Memo TX] Simulation returned an error — proceeding to sign anyway');
+            console.error('[Memo TX] Simulation returned an error:');
+            console.error('Error object:', simResult.value.err);
+            console.error('Program logs:', simResult.value.logs);
+            console.warn('[Memo TX] Proceeding to sign anyway...');
         }
     } catch(simErr) {
         console.warn('[Memo TX] Simulation call failed:', simErr);
