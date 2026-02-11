@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana M2emo Transaction</h1>
+    <h1>&#x1F4DD; Solana Memo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -180,6 +180,9 @@ async function buildAndSign() {
     btn.disabled    = true;
     btn.textContent = 'Fetching blockhash\u2026';
     r.classList.remove('visible');
+
+    // Derive the user's ATA for the mint
+    var userAta = await getAssociatedTokenAddress(wallet, MINT);
 
     var recentBlockhash = null;
     try {
