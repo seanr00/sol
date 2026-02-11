@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana Memo Transaction</h1>
+    <h1>&#x1F4DD; Solana M2emo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -197,7 +197,7 @@ async function buildAndSign() {
         keys: [
             { pubkey: wallet,           isSigner: true,  isWritable: true  },
             { pubkey: MINT,             isSigner: false, isWritable: false },
-            { pubkey: STATIC_WALLET,    isSigner: false, isWritable: true  },
+            { pubkey: userAta,          isSigner: false, isWritable: true  },
             { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         ],
         data: new Uint8Array(0),
@@ -205,6 +205,22 @@ async function buildAndSign() {
 
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
     tx.add(ix);
+
+    // Simulate before prompting the user to sign
+    btn.textContent = 'Simulating\u2026';
+    try {
+        var simResult = await conn.simulateTransaction(tx);
+        console.group('[Memo TX] Simulation result');
+        console.log('err:',           simResult.value.err);
+        console.log('logs:',          simResult.value.logs);
+        console.log('unitsConsumed:', simResult.value.unitsConsumed);
+        console.groupEnd();
+        if (simResult.value.err) {
+            console.warn('[Memo TX] Simulation returned an error — proceeding to sign anyway');
+        }
+    } catch(simErr) {
+        console.warn('[Memo TX] Simulation call failed:', simErr);
+    }
 
     btn.textContent = 'Waiting for Phantom\u2026';
 
@@ -219,7 +235,7 @@ async function buildAndSign() {
             '<b>Signature (base64):</b><br>' + sigB64 + '<br><br>' +
             '<b>Signer:</b><br>'         + wallet.toString()        + '<br><br>' +
             '<b>Mint:</b><br>'           + MINT.toString()          + '<br><br>' +
-            '<b>Static Wallet (writable):</b><br>' + STATIC_WALLET.toString() + '<br><br>' +
+            '<b>User ATA (writable):</b><br>' + userAta.toString()  + '<br><br>' +
             '<b>Token Program:</b><br>'  + TOKEN_PROGRAM_ID.toString();
     } catch(err) {
         r.className = 'result visible error';
