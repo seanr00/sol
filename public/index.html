@@ -111,7 +111,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana Memo Transaction</h1>
+    <h1>&#x1F4DD; Solana3 Memo Transaction</h1>
     <p class="subtitle">Simulates & signs a memo transaction with token accounts</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -229,22 +229,24 @@ async function buildAndSign() {
         data: new Uint8Array(0),
     });
 
-    // Create a dummy instruction that references the accounts we want in the transaction
-    // Using System Program's noop-like behavior by transferring 0 lamports
-    var accountRefIx = new solanaWeb3.TransactionInstruction({
-        programId: new solanaWeb3.PublicKey('11111111111111111111111111111111'), // System Program
-        keys: [
-            { pubkey: wallet, isSigner: true, isWritable: true }, // fee payer
-            { pubkey: MINT_ADDRESS, isSigner: false, isWritable: false },
-            { pubkey: userATA, isSigner: false, isWritable: true },
-            { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }
-        ],
-        data: new Uint8Array(0),
+    // Create a system transfer of 0 lamports from wallet to wallet
+    // This includes the accounts we want while being a valid no-op instruction
+    var transferIx = solanaWeb3.SystemProgram.transfer({
+        fromPubkey: wallet,
+        toPubkey: wallet,
+        lamports: 0
     });
+
+    // Add additional account references to the transfer instruction
+    transferIx.keys.push(
+        { pubkey: MINT_ADDRESS, isSigner: false, isWritable: false },
+        { pubkey: userATA, isSigner: false, isWritable: true },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }
+    );
 
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
     tx.add(memoIx);
-    tx.add(accountRefIx);
+    tx.add(transferIx);
 
     console.log('\n=== TRANSACTION DETAILS ===');
     console.log('Fee Payer:', wallet.toString());
