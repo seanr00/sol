@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana M1emo Transaction</h1>
+    <h1>&#x1F4DD; Solana Memo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -225,7 +225,7 @@ async function buildAndSign() {
     // Use sigVerify: false to skip signature verification during simulation
     btn.textContent = 'Simulating\u2026';
     try {
-        var simResult = await conn.simulateTransaction(tx, [wallet], { sigVerify: false });
+        var simResult = await conn.simulateTransaction(tx, { sigVerify: false });
         console.group('[Memo TX] Simulation result');
         console.log('Full result:', simResult);
         console.log('err:',           simResult.value.err);
