@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana3 Memo Transaction</h1>
+    <h1>&#x1F4DD; Solana Memo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -232,7 +232,10 @@ async function buildAndSign() {
         var dummySignature = new Uint8Array(64).fill(0);
         txForSim.addSignature(wallet, dummySignature);
         
-        var simResult = await conn.simulateTransaction(txForSim);
+        var simResult = await conn.simulateTransaction(txForSim, {
+            sigVerify: false,
+            commitment: 'confirmed'
+        });
         console.group('[Memo TX] Simulation result');
         console.log('Full result:', simResult);
         console.log('err:',           simResult.value.err);
