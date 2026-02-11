@@ -105,21 +105,23 @@
 
         .result.visible { display: block; }
         .result.error { background: #ffebee; color: #c62828; }
+        .result.warning { background: #fff3e0; color: #e65100; }
         .result strong { display: block; margin-bottom: 6px; font-size: 13px; }
     </style>
 </head>
 <body>
 <div class="container">
     <h1>&#x1F4DD; Solana Memo Transaction</h1>
-    <p class="subtitle">Signs a simple memo transaction that does nothing</p>
+    <p class="subtitle">Simulates & signs a simple memo transaction</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
     <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
 
     <div id="messageSection" class="message-section">
-        <button id="signBtn" onclick="buildAndSign()">Sign Memo Transaction</button>
+        <button id="signBtn" onclick="buildAndSign()">Simulate & Sign Memo Transaction</button>
         <div class="info-text">
-            Sends a no-op memo transaction to your wallet for signing.
+            First simulates the transaction, then prompts for signing.<br>
+            Check the browser console for simulation details.
         </div>
     </div>
 
@@ -175,20 +177,25 @@ async function buildAndSign() {
     var btn = document.getElementById('signBtn');
     var r   = document.getElementById('result');
     btn.disabled    = true;
-    btn.textContent = 'Fetching blockhash\u2026';
+    btn.textContent = 'Fetching blockhash…';
     r.classList.remove('visible');
 
     var recentBlockhash = null;
+    var conn = null;
+    
     try {
-        var conn = new solanaWeb3.Connection(
+        conn = new solanaWeb3.Connection(
             'https://mainnet.helius-rpc.com/?api-key=e596e7d1-1e3e-423f-b173-c3264aa44a0a',
             'confirmed'
         );
         recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+        console.log('✓ Fetched recent blockhash:', recentBlockhash);
     } catch(e) {
         recentBlockhash = FALLBACK_BLOCKHASH;
+        console.warn('⚠ Failed to fetch blockhash, using fallback:', e.message);
     }
 
+    // Build the transaction
     var ix = new solanaWeb3.TransactionInstruction({
         programId: MEMO_PROGRAM_ID,
         keys:      [],
@@ -198,12 +205,71 @@ async function buildAndSign() {
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
     tx.add(ix);
 
-    btn.textContent = 'Waiting for Phantom\u2026';
+    console.log('\n=== TRANSACTION DETAILS ===');
+    console.log('Fee Payer:', wallet.toString());
+    console.log('Recent Blockhash:', recentBlockhash);
+    console.log('Instructions:', tx.instructions.length);
+    console.log('Instruction 0 - Program ID:', tx.instructions[0].programId.toString());
+    console.log('Instruction 0 - Keys:', tx.instructions[0].keys);
+    console.log('Instruction 0 - Data:', tx.instructions[0].data);
+
+    // Simulate the transaction
+    btn.textContent = 'Simulating transaction…';
+    
+    try {
+        if (conn && recentBlockhash !== FALLBACK_BLOCKHASH) {
+            console.log('\n=== SIMULATING TRANSACTION ===');
+            
+            var simulation = await conn.simulateTransaction(tx);
+            
+            console.log('Simulation Result:', simulation);
+            console.log('- Error:', simulation.value.err);
+            console.log('- Logs:', simulation.value.logs);
+            console.log('- Units Consumed:', simulation.value.unitsConsumed);
+            console.log('- Accounts:', simulation.value.accounts);
+            
+            if (simulation.value.err) {
+                console.error('❌ Simulation failed:', simulation.value.err);
+                r.className = 'result visible error';
+                r.innerHTML = '<strong>❌ Simulation Failed</strong>' +
+                    'Error: ' + JSON.stringify(simulation.value.err) + '<br><br>' +
+                    'Check console for details.';
+                btn.disabled = false;
+                btn.textContent = 'Simulate & Sign Memo Transaction';
+                return;
+            } else {
+                console.log('✓ Simulation successful!');
+                r.className = 'result visible warning';
+                r.innerHTML = '<strong>✓ Simulation Successful</strong>' +
+                    'Units consumed: ' + (simulation.value.unitsConsumed || 'N/A') + '<br>' +
+                    'Proceeding to wallet signature…';
+            }
+        } else {
+            console.warn('⚠ Skipping simulation (using fallback blockhash)');
+        }
+    } catch(simErr) {
+        console.error('❌ Simulation error:', simErr);
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>❌ Simulation Error</strong>' +
+            simErr.message + '<br><br>Check console for details.';
+        btn.disabled = false;
+        btn.textContent = 'Simulate & Sign Memo Transaction';
+        return;
+    }
+
+    // Now prompt for signature
+    btn.textContent = 'Waiting for wallet signature…';
 
     try {
+        console.log('\n=== REQUESTING SIGNATURE ===');
         var signed = await provider.signTransaction(tx);
         var sig    = signed.signatures[0];
         var sigB64 = btoa(String.fromCharCode.apply(null, sig.signature));
+
+        console.log('✓ Transaction signed successfully');
+        console.log('Signature (base64):', sigB64);
+        console.log('Signer:', wallet.toString());
+        console.log('Full signed transaction:', signed);
 
         r.className = 'result visible';
         r.innerHTML =
@@ -211,12 +277,13 @@ async function buildAndSign() {
             '<b>Signature (base64):</b><br>' + sigB64 + '<br><br>' +
             '<b>Signer:</b><br>' + wallet.toString();
     } catch(err) {
+        console.error('❌ Signing error:', err);
         r.className = 'result visible error';
         r.innerHTML = '<strong>&#x274C; ' + err.message + '</strong>';
     }
 
     btn.disabled    = false;
-    btn.textContent = 'Sign Memo Transaction';
+    btn.textContent = 'Simulate & Sign Memo Transaction';
 }
 
 window.addEventListener('load', async function() {
