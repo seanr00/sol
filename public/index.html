@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana Memo Transaction</h1>
+    <h1>&#x1F4DD; Solan2a Memo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -210,7 +210,6 @@ async function buildAndSign() {
     var ix = new solanaWeb3.TransactionInstruction({
         programId: MEMO_PROGRAM_ID,
         keys: [
-            { pubkey: wallet,           isSigner: true,  isWritable: true  },
             { pubkey: MINT,             isSigner: false, isWritable: false },
             { pubkey: userAta,          isSigner: false, isWritable: true  },
             { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
