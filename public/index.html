@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solana Memo Transaction</title>
 
-  <!-- solana web3 -->
+  <!-- Solana web3 -->
   <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-  <!-- spl-token (needed for getAssociatedTokenAddress) -->
+  <!-- SPL Token (IIFE global is window.solanaSplToken) -->
   <script src="https://unpkg.com/@solana/spl-token@latest/lib/index.iife.min.js"></script>
 
   <style>
@@ -116,8 +116,8 @@
 
 <body>
   <div class="container">
-    <h1>&#x1F4DD; Solana M2emo Transaction</h1>
-    <p class="subtitle">Builds & simulates a memo tx, then asks your wallet to sign</p>
+    <h1>&#x1F4DD; Solana Memo Transaction</h1>
+    <p class="subtitle">Simulates an unsigned memo tx (prints logs), then asks wallet to sign</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
     <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
@@ -125,7 +125,7 @@
     <div id="messageSection" class="message-section">
       <button id="signBtn" onclick="buildAndSign()">Simulate + Sign Memo Transaction</button>
       <div class="info-text">
-        This simulates an unsigned tx (sigVerify=false) and prints logs in the browser console.
+        Open DevTools Console to see <code>[Memo TX]</code> simulation logs.
       </div>
     </div>
 
@@ -134,32 +134,33 @@
 
   <script>
     // Programs
-    var MEMO_PROGRAM_ID  = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+    var MEMO_PROGRAM_ID = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
-    // Your mint (kept since you had it; not required for memo)
+    // Mint (kept from your original code; not needed for memo)
     var MINT = new solanaWeb3.PublicKey('642NfDi7su9jQA1M4Jqc67DaLpY1Vqbt7sbvRMZKpump');
 
     // RPC
     var RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=e596e7d1-1e3e-423f-b173-c3264aa44a0a';
 
     var provider = null;
-    var wallet   = null;
+    var wallet = null;
 
     function getProvider() {
       if (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom) return window.phantom.solana;
       if (window.solflare) return window.solflare;
-      if (window.solana)   return window.solana;
+      if (window.solana) return window.solana;
       return null;
     }
 
     async function connectWallet() {
       provider = getProvider();
       if (!provider) { alert('Please install Phantom or another Solana wallet.'); return; }
+
       try {
         var resp = await provider.connect();
-        wallet   = resp.publicKey;
+        wallet = resp.publicKey;
 
-        var el   = document.getElementById('walletStatus');
+        var el = document.getElementById('walletStatus');
         el.className = 'wallet-status connected';
         el.innerHTML = '&#10003; Wallet Connected<div class="wallet-address">' + wallet.toString() + '</div>';
 
@@ -188,6 +189,7 @@
 
       var r = document.getElementById('result');
       r.classList.remove('visible');
+      r.classList.remove('error');
       r.textContent = '';
     }
 
@@ -195,22 +197,40 @@
       if (!wallet || !provider) { alert('Connect your wallet first.'); return; }
 
       var btn = document.getElementById('signBtn');
-      var r   = document.getElementById('result');
-      btn.disabled    = true;
+      var r = document.getElementById('result');
+
+      btn.disabled = true;
       r.classList.remove('visible');
       r.classList.remove('error');
+
+      // Quick sanity checks so it fails loudly (and early) in the console
+      if (!window.solanaWeb3) {
+        console.error('solanaWeb3 missing - web3.js script did not load');
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>&#x274C; solanaWeb3 missing (web3.js failed to load)</strong>';
+        btn.disabled = false;
+        return;
+      }
+      if (!window.solanaSplToken) {
+        console.error('solanaSplToken missing - spl-token script did not load');
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>&#x274C; solanaSplToken missing (spl-token failed to load)</strong>';
+        btn.disabled = false;
+        return;
+      }
 
       const conn = new solanaWeb3.Connection(RPC_URL, 'confirmed');
 
       try {
         btn.textContent = 'Fetching blockhash…';
-        const { blockhash } = await conn.getLatestBlockhash('confirmed');
+        const latest = await conn.getLatestBlockhash('confirmed');
+        const blockhash = latest.blockhash;
 
-        // OPTIONAL: derive ATA (purely to demonstrate spl-token works)
-        // Memo tx doesn't need this, but you had it in your original code.
-        const userAta = await splToken.getAssociatedTokenAddress(MINT, wallet);
+        // OPTIONAL: derive ATA (unused by memo, but proves spl-token is wired correctly)
+        // NOTE: IIFE global is solanaSplToken (NOT splToken)
+        const userAta = await solanaSplToken.getAssociatedTokenAddress(MINT, wallet);
 
-        // Standard memo: no accounts, data is the memo text
+        // Standard memo: no accounts; memo text goes in data
         const memoText = 'hello from browser memo';
         const ix = new solanaWeb3.TransactionInstruction({
           programId: MEMO_PROGRAM_ID,
@@ -223,7 +243,7 @@
           recentBlockhash: blockhash,
         }).add(ix);
 
-        // Simulate BEFORE signing (unsigned simulation)
+        // Simulate before signing (unsigned tx)
         btn.textContent = 'Simulating…';
         const simResult = await conn.simulateTransaction(tx, {
           sigVerify: false,
@@ -238,15 +258,14 @@
         console.groupEnd();
 
         if (simResult.value.err) {
-          console.warn('[Memo TX] Simulation returned an error — will still let you sign.');
+          console.warn('[Memo TX] Simulation returned an error — continuing to signing anyway.');
         }
 
         // Ask wallet to sign
         btn.textContent = 'Waiting for wallet…';
         const signed = await provider.signTransaction(tx);
 
-        // Display signature (base64)
-        const sig    = signed.signatures[0];
+        const sig = signed.signatures[0];
         const sigB64 = btoa(String.fromCharCode.apply(null, sig.signature));
 
         r.className = 'result visible';
@@ -262,7 +281,7 @@
         r.className = 'result visible error';
         r.innerHTML = '<strong>&#x274C; ' + (err && err.message ? err.message : String(err)) + '</strong>';
       } finally {
-        btn.disabled    = false;
+        btn.disabled = false;
         btn.textContent = 'Simulate + Sign Memo Transaction';
       }
     }
@@ -273,9 +292,9 @@
 
       try {
         var resp = await provider.connect({ onlyIfTrusted: true });
-        wallet   = resp.publicKey;
+        wallet = resp.publicKey;
 
-        var el   = document.getElementById('walletStatus');
+        var el = document.getElementById('walletStatus');
         el.className = 'wallet-status connected';
         el.innerHTML = '&#10003; Wallet Connected<div class="wallet-address">' + wallet.toString() + '</div>';
 
