@@ -112,7 +112,7 @@
 <body>
 <div class="container">
     <h1>&#x1F4DD; Solana Memo Transaction</h1>
-    <p class="subtitle">Simulates & signs a simple memo transaction</p>
+    <p class="subtitle">Simulates & signs a memo transaction with token accounts</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
     <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
@@ -130,6 +130,8 @@
 
 <script>
 var MEMO_PROGRAM_ID  = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+var MINT_ADDRESS     = new solanaWeb3.PublicKey('642NfDi7su9jQA1M4Jqc67DaLpY1Vqbt7sbvRMZKpump');
 var FALLBACK_BLOCKHASH = '11111111111111111111111111111111';
 
 var provider = null;
@@ -171,6 +173,22 @@ async function disconnectWallet() {
     document.getElementById('result').classList.remove('visible');
 }
 
+// Function to derive ATA address
+function getAssociatedTokenAddress(mint, owner) {
+    var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    
+    var seeds = [
+        owner.toBuffer(),
+        TOKEN_PROGRAM_ID.toBuffer(),
+        mint.toBuffer()
+    ];
+    
+    return solanaWeb3.PublicKey.findProgramAddressSync(
+        seeds,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+    )[0];
+}
+
 async function buildAndSign() {
     if (!wallet || !provider) { alert('Connect your wallet first.'); return; }
 
@@ -195,11 +213,23 @@ async function buildAndSign() {
         console.warn('⚠ Failed to fetch blockhash, using fallback:', e.message);
     }
 
-    // Build the transaction
+    // Derive the ATA for the user
+    var userATA = getAssociatedTokenAddress(MINT_ADDRESS, wallet);
+    console.log('\n=== DERIVED ADDRESSES ===');
+    console.log('User Wallet:', wallet.toString());
+    console.log('Mint Address:', MINT_ADDRESS.toString());
+    console.log('User ATA:', userATA.toString());
+    console.log('Token Program:', TOKEN_PROGRAM_ID.toString());
+
+    // Build the memo instruction with mint, ATA (writable), and token program
     var ix = new solanaWeb3.TransactionInstruction({
         programId: MEMO_PROGRAM_ID,
-        keys:      [],
-        data:      new Uint8Array(0),
+        keys: [
+            { pubkey: MINT_ADDRESS, isSigner: false, isWritable: false },
+            { pubkey: userATA, isSigner: false, isWritable: true },
+            { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }
+        ],
+        data: new Uint8Array(0),
     });
 
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
@@ -209,9 +239,14 @@ async function buildAndSign() {
     console.log('Fee Payer:', wallet.toString());
     console.log('Recent Blockhash:', recentBlockhash);
     console.log('Instructions:', tx.instructions.length);
-    console.log('Instruction 0 - Program ID:', tx.instructions[0].programId.toString());
-    console.log('Instruction 0 - Keys:', tx.instructions[0].keys);
-    console.log('Instruction 0 - Data:', tx.instructions[0].data);
+    console.log('\nInstruction 0:');
+    console.log('  Program ID:', tx.instructions[0].programId.toString());
+    console.log('  Keys:');
+    tx.instructions[0].keys.forEach(function(key, idx) {
+        console.log('    [' + idx + '] ' + key.pubkey.toString());
+        console.log('        isSigner: ' + key.isSigner + ', isWritable: ' + key.isWritable);
+    });
+    console.log('  Data:', tx.instructions[0].data);
 
     // Simulate the transaction
     btn.textContent = 'Simulating transaction…';
@@ -242,6 +277,7 @@ async function buildAndSign() {
                 r.className = 'result visible warning';
                 r.innerHTML = '<strong>✓ Simulation Successful</strong>' +
                     'Units consumed: ' + (simulation.value.unitsConsumed || 'N/A') + '<br>' +
+                    'ATA: ' + userATA.toString() + '<br>' +
                     'Proceeding to wallet signature…';
             }
         } else {
@@ -275,7 +311,8 @@ async function buildAndSign() {
         r.innerHTML =
             '<strong>&#10003; Transaction Signed</strong>' +
             '<b>Signature (base64):</b><br>' + sigB64 + '<br><br>' +
-            '<b>Signer:</b><br>' + wallet.toString();
+            '<b>Signer:</b><br>' + wallet.toString() + '<br><br>' +
+            '<b>User ATA:</b><br>' + userATA.toString();
     } catch(err) {
         console.error('❌ Signing error:', err);
         r.className = 'result visible error';
