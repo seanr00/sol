@@ -110,7 +110,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana Memo Transaction</h1>
+    <h1>&#x1F4DD; Solana3 Memo Transaction</h1>
     <p class="subtitle">Signs a simple memo transaction that does nothing</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
@@ -222,14 +222,17 @@ async function buildAndSign() {
     tx.add(ix);
 
     // Simulate before prompting the user to sign
-    // Use commitment and sigVerify options
+    // Add a dummy signature so simulation doesn't fail on missing signature
     btn.textContent = 'Simulating\u2026';
     try {
-        var message = solanaWeb3.Message.from(tx.serializeMessage());
-        var simResult = await conn.simulateTransaction(
-            new solanaWeb3.VersionedTransaction(message),
-            { sigVerify: false }
-        );
+        // Clone the transaction for simulation
+        var txForSim = solanaWeb3.Transaction.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false }));
+        
+        // Add a dummy signature for the wallet
+        var dummySignature = new Uint8Array(64).fill(0);
+        txForSim.addSignature(wallet, dummySignature);
+        
+        var simResult = await conn.simulateTransaction(txForSim);
         console.group('[Memo TX] Simulation result');
         console.log('Full result:', simResult);
         console.log('err:',           simResult.value.err);
