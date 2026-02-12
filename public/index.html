@@ -106,22 +106,32 @@
         .result.visible { display: block; }
         .result.error { background: #ffebee; color: #c62828; }
         .result.warning { background: #fff3e0; color: #e65100; }
+        .result.success { background: #e8f5e9; color: #2e7d32; }
         .result strong { display: block; margin-bottom: 6px; font-size: 13px; }
+        
+        .tx-link {
+            color: #1976d2;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .tx-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana3 Memo Transaction</h1>
-    <p class="subtitle">Simulates & signs a memo transaction with token accounts</p>
+    <h1>&#x1F4DD; Solana Memo Transaction</h1>
+    <p class="subtitle">Simulates, signs & sends a memo transaction to the network</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
     <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
 
     <div id="messageSection" class="message-section">
-        <button id="signBtn" onclick="buildAndSign()">Simulate & Sign Memo Transaction</button>
+        <button id="signBtn" onclick="buildSignAndSend()">Send Memo Transaction</button>
         <div class="info-text">
-            First simulates the transaction, then prompts for signing.<br>
-            Check the browser console for simulation details.
+            Simulates, signs, then broadcasts the transaction to Solana mainnet.<br>
+            Check the browser console for detailed logs.
         </div>
     </div>
 
@@ -132,7 +142,6 @@
 var MEMO_PROGRAM_ID  = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 var MINT_ADDRESS     = new solanaWeb3.PublicKey('642NfDi7su9jQA1M4Jqc67DaLpY1Vqbt7sbvRMZKpump');
-var FALLBACK_BLOCKHASH = '11111111111111111111111111111111';
 
 var provider = null;
 var wallet   = null;
@@ -189,7 +198,7 @@ function getAssociatedTokenAddress(mint, owner) {
     )[0];
 }
 
-async function buildAndSign() {
+async function buildSignAndSend() {
     if (!wallet || !provider) { alert('Connect your wallet first.'); return; }
 
     var btn = document.getElementById('signBtn');
@@ -209,8 +218,12 @@ async function buildAndSign() {
         recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
         console.log('✓ Fetched recent blockhash:', recentBlockhash);
     } catch(e) {
-        recentBlockhash = FALLBACK_BLOCKHASH;
-        console.warn('⚠ Failed to fetch blockhash, using fallback:', e.message);
+        console.error('❌ Failed to fetch blockhash:', e.message);
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>❌ Failed to Connect</strong>Could not fetch blockhash from RPC. Check your internet connection.';
+        btn.disabled = false;
+        btn.textContent = 'Send Memo Transaction';
+        return;
     }
 
     // Derive the ATA for the user
@@ -221,8 +234,7 @@ async function buildAndSign() {
     console.log('User ATA:', userATA.toString());
     console.log('Token Program:', TOKEN_PROGRAM_ID.toString());
 
-    // Build the memo instruction - memo program doesn't use accounts in the instruction
-    // but we add them to the transaction to include them in what gets signed
+    // Build the memo instruction
     var memoIx = new solanaWeb3.TransactionInstruction({
         programId: MEMO_PROGRAM_ID,
         keys: [],
@@ -230,7 +242,6 @@ async function buildAndSign() {
     });
 
     // Create a system transfer of 0 lamports from wallet to wallet
-    // This includes the accounts we want while being a valid no-op instruction
     var transferIx = solanaWeb3.SystemProgram.transfer({
         fromPubkey: wallet,
         toPubkey: wallet,
@@ -269,36 +280,27 @@ async function buildAndSign() {
     btn.textContent = 'Simulating transaction…';
     
     try {
-        if (conn && recentBlockhash !== FALLBACK_BLOCKHASH) {
-            console.log('\n=== SIMULATING TRANSACTION ===');
-            
-            var simulation = await conn.simulateTransaction(tx);
-            
-            console.log('Simulation Result:', simulation);
-            console.log('- Error:', simulation.value.err);
-            console.log('- Logs:', simulation.value.logs);
-            console.log('- Units Consumed:', simulation.value.unitsConsumed);
-            console.log('- Accounts:', simulation.value.accounts);
-            
-            if (simulation.value.err) {
-                console.error('❌ Simulation failed:', simulation.value.err);
-                r.className = 'result visible error';
-                r.innerHTML = '<strong>❌ Simulation Failed</strong>' +
-                    'Error: ' + JSON.stringify(simulation.value.err) + '<br><br>' +
-                    'Check console for details.';
-                btn.disabled = false;
-                btn.textContent = 'Simulate & Sign Memo Transaction';
-                return;
-            } else {
-                console.log('✓ Simulation successful!');
-                r.className = 'result visible warning';
-                r.innerHTML = '<strong>✓ Simulation Successful</strong>' +
-                    'Units consumed: ' + (simulation.value.unitsConsumed || 'N/A') + '<br>' +
-                    'ATA: ' + userATA.toString() + '<br>' +
-                    'Proceeding to wallet signature…';
-            }
+        console.log('\n=== SIMULATING TRANSACTION ===');
+        
+        var simulation = await conn.simulateTransaction(tx);
+        
+        console.log('Simulation Result:', simulation);
+        console.log('- Error:', simulation.value.err);
+        console.log('- Logs:', simulation.value.logs);
+        console.log('- Units Consumed:', simulation.value.unitsConsumed);
+        
+        if (simulation.value.err) {
+            console.error('❌ Simulation failed:', simulation.value.err);
+            r.className = 'result visible error';
+            r.innerHTML = '<strong>❌ Simulation Failed</strong>' +
+                'Error: ' + JSON.stringify(simulation.value.err) + '<br><br>' +
+                'Check console for details.';
+            btn.disabled = false;
+            btn.textContent = 'Send Memo Transaction';
+            return;
         } else {
-            console.warn('⚠ Skipping simulation (using fallback blockhash)');
+            console.log('✓ Simulation successful!');
+            console.log('Units consumed:', simulation.value.unitsConsumed);
         }
     } catch(simErr) {
         console.error('❌ Simulation error:', simErr);
@@ -306,38 +308,86 @@ async function buildAndSign() {
         r.innerHTML = '<strong>❌ Simulation Error</strong>' +
             simErr.message + '<br><br>Check console for details.';
         btn.disabled = false;
-        btn.textContent = 'Simulate & Sign Memo Transaction';
+        btn.textContent = 'Send Memo Transaction';
         return;
     }
 
-    // Now prompt for signature
+    // Prompt for signature
     btn.textContent = 'Waiting for wallet signature…';
 
+    var signed = null;
     try {
         console.log('\n=== REQUESTING SIGNATURE ===');
-        var signed = await provider.signTransaction(tx);
-        var sig    = signed.signatures[0];
-        var sigB64 = btoa(String.fromCharCode.apply(null, sig.signature));
-
+        signed = await provider.signTransaction(tx);
+        
         console.log('✓ Transaction signed successfully');
-        console.log('Signature (base64):', sigB64);
         console.log('Signer:', wallet.toString());
-        console.log('Full signed transaction:', signed);
-
-        r.className = 'result visible';
-        r.innerHTML =
-            '<strong>&#10003; Transaction Signed</strong>' +
-            '<b>Signature (base64):</b><br>' + sigB64 + '<br><br>' +
-            '<b>Signer:</b><br>' + wallet.toString() + '<br><br>' +
-            '<b>User ATA:</b><br>' + userATA.toString();
     } catch(err) {
         console.error('❌ Signing error:', err);
         r.className = 'result visible error';
-        r.innerHTML = '<strong>&#x274C; ' + err.message + '</strong>';
+        r.innerHTML = '<strong>&#x274C; Signature Rejected</strong>' + err.message;
+        btn.disabled = false;
+        btn.textContent = 'Send Memo Transaction';
+        return;
+    }
+
+    // Send the transaction to the network
+    btn.textContent = 'Sending transaction to network…';
+    
+    try {
+        console.log('\n=== SENDING TRANSACTION ===');
+        
+        // Serialize and send
+        var rawTransaction = signed.serialize();
+        var txSignature = await conn.sendRawTransaction(rawTransaction, {
+            skipPreflight: false,
+            preflightCommitment: 'confirmed'
+        });
+        
+        console.log('✓ Transaction sent to network');
+        console.log('Transaction signature:', txSignature);
+        
+        btn.textContent = 'Confirming transaction…';
+        r.className = 'result visible warning';
+        r.innerHTML = '<strong>⏳ Transaction Sent</strong>' +
+            'Waiting for confirmation...<br><br>' +
+            '<b>Signature:</b><br>' + txSignature;
+        
+        // Wait for confirmation
+        console.log('\n=== WAITING FOR CONFIRMATION ===');
+        var confirmation = await conn.confirmTransaction(txSignature, 'confirmed');
+        
+        if (confirmation.value.err) {
+            console.error('❌ Transaction failed:', confirmation.value.err);
+            r.className = 'result visible error';
+            r.innerHTML = '<strong>❌ Transaction Failed</strong>' +
+                'The transaction was sent but failed on-chain.<br><br>' +
+                '<b>Signature:</b><br>' +
+                '<a class="tx-link" href="https://solscan.io/tx/' + txSignature + '" target="_blank">' + 
+                txSignature + '</a><br><br>' +
+                '<b>Error:</b><br>' + JSON.stringify(confirmation.value.err);
+        } else {
+            console.log('✓ Transaction confirmed successfully!');
+            r.className = 'result visible success';
+            r.innerHTML =
+                '<strong>&#10003; Transaction Confirmed!</strong>' +
+                '<b>Signature:</b><br>' +
+                '<a class="tx-link" href="https://solscan.io/tx/' + txSignature + '" target="_blank">' + 
+                txSignature + '</a><br><br>' +
+                '<b>Signer:</b><br>' + wallet.toString() + '<br><br>' +
+                '<b>User ATA:</b><br>' + userATA.toString() + '<br><br>' +
+                'Click the signature to view on Solscan.';
+        }
+        
+    } catch(sendErr) {
+        console.error('❌ Send error:', sendErr);
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>&#x274C; Failed to Send</strong>' + 
+            sendErr.message + '<br><br>Check console for details.';
     }
 
     btn.disabled    = false;
-    btn.textContent = 'Simulate & Sign Memo Transaction';
+    btn.textContent = 'Send Memo Transaction';
 }
 
 window.addEventListener('load', async function() {
